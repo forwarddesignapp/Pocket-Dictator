@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Pocket Dictator</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+    body { background: #1a1a24; color: #fff; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; padding: 15px; }
+    .card { background: #252636; border-radius: 16px; padding: 20px; width: 100%; max-width: 400px; box-shadow: 0 10px 25px rgba(0,0,0,0.5); text-align: center; }
+    h1 { color: #f39c12; margin-bottom: 5px; font-size: 1.5rem; }
+    p.subtitle { color: #8e94a8; font-size: 0.85rem; margin-bottom: 15px; }
+    .stats-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 20px; }
+    .stat-box { background: #1a1a24; padding: 10px; border-radius: 10px; border: 1px solid #34374c; }
+    .stat-value { font-size: 1.2rem; font-weight: bold; color: #2ecc71; }
+    .stat-label { font-size: 0.75rem; color: #8e94a8; }
+    .actions { display: flex; flex-direction: column; gap: 10px; }
+    button { background: #e67e22; border: none; color: white; padding: 12px; border-radius: 10px; font-weight: bold; font-size: 0.95rem; cursor: pointer; transition: 0.2s; }
+    button:active { transform: scale(0.98); background: #d35400; }
+    button:disabled { background: #4a4d63; cursor: not-allowed; color: #8e94a8; }
+    .log { margin-top: 15px; font-size: 0.8rem; color: #3498db; min-height: 20px; }
+  </style>
+</head>
+<body>
+
+<div class="card">
+  <h1>POCKET KINGDOM</h1>
+  <p class="subtitle">Atur strategi dan bangun kerajaaanmu</p>
+  
+  <div class="stats-grid">
+    <div class="stat-box">
+      <div class="stat-value" id="gold">100</div>
+      <div class="stat-label">Emas</div>
+    </div>
+    <div class="stat-box">
+      <div class="stat-value" id="pop">10</div>
+      <div class="stat-label">Rakyat</div>
+    </div>
+    <div class="stat-box">
+      <div class="stat-value" id="food">50</div>
+      <div class="stat-label">Makanan</div>
+    </div>
+  </div>
+
+  <div class="actions">
+    <button onclick="work()">Kumpulkan Sumber Daya (+Emas & Makanan)</button>
+    <button onclick="buildFarm()" id="btnFarm">Bikin Ladang (Biaya: 50 Emas)</button>
+    <button onclick="recruit()" id="btnRecruit">Rekrut Rakyat (Biaya: 30 Makanan)</button>
+  </div>
+
+  <div class="log" id="logMessage">Selamat datang, Yang Mulia!</div>
+</div>
+
+<script>
+  let state = { gold: 100, pop: 10, food: 50, farms: 0 };
+
+  function updateUI() {
+    document.getElementById('gold').innerText = state.gold;
+    document.getElementById('pop').innerText = state.pop;
+    document.getElementById('food').innerText = state.food;
+    
+    document.getElementById('btnFarm').disabled = state.gold < 50;
+    document.getElementById('btnRecruit').disabled = state.food < 30;
+  }
+
+  function log(msg) {
+    document.getElementById('logMessage').innerText = msg;
+  }
+
+  function work() {
+    let earnedGold = 10 + (state.farms * 5);
+    let earnedFood = 15 + (state.farms * 10);
+    state.gold += earnedGold;
+    state.food += earnedFood;
+    log(`Rakyat bekerja! Menerima +${earnedGold} Emas & +${earnedFood} Makanan.`);
+    updateUI();
+  }
+
+  function buildFarm() {
+    if (state.gold >= 50) {
+      state.gold -= 50;
+      state.farms += 1;
+      log("Ladang baru dibangun! Hasil panen meningkat.");
+      updateUI();
+    }
+  }
+
+  function recruit() {
+    if (state.food >= 30) {
+      state.food -= 30;
+      state.pop += 2;
+      log("2 Warga baru bergabung dengan kerajaan!");
+      updateUI();
+    }
+  }
+
+  updateUI();
+</script>
+</body>
+</html>
