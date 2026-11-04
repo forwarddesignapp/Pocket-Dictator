@@ -29,7 +29,30 @@
     <script type="text/babel">
         const { useState, useEffect } = React;
 
-        // --- KONSTANTA GAME ---
+        const SAVE_KEY = 'pocket_pirates_save_v1';
+
+        // --- KONSTANTA DEFAULT INITIAL STATE ---
+        const DEFAULT_RESOURCES = {
+            gold: 500,
+            wood: 200,
+            food: 100,
+            rum: 50,
+            gunpowder: 40,
+        };
+
+        const DEFAULT_SHIP = {
+            level: 1,
+            hullHp: 100,
+            maxHullHp: 100,
+            cannons: 2,
+        };
+
+        const DEFAULT_MORALE = 85;
+        const DEFAULT_SPECIALISTS = [];
+        const DEFAULT_TROOPS = { swordsman: 3, musketeer: 1, grenadier: 0, brute: 0 };
+        const DEFAULT_LOGS = ["Selamat datang di Pocket Pirates! Siapkan kapalnya, Kapten."];
+
+        // --- KONSTANTA TINGKATAN KAPAL & UNIT ---
         const SHIP_TIERS = [
             { level: 1, name: "Raft / Sloop Kecil", maxCrew: 10, maxCannons: 4, upgradeWood: 0, upgradeGold: 0 },
             { level: 2, name: "Sloop Lanjutan", maxCrew: 12, maxCannons: 4, upgradeWood: 100, upgradeGold: 150 },
@@ -61,31 +84,33 @@
         ];
 
         function PocketPiratesApp() {
+            // HELPER LOAD DARI LOCALSTORAGE
+            const loadSavedState = () => {
+                try {
+                    const saved = localStorage.getItem(SAVE_KEY);
+                    if (saved) {
+                        return JSON.parse(saved);
+                    }
+                } catch (e) {
+                    console.error("Gagal memuat save game dari LocalStorage:", e);
+                }
+                return null;
+            };
+
+            const initialData = loadSavedState();
+
             // --- STATE UTAMA GAME ---
-            const [resources, setResources] = useState({
-                gold: 500,
-                wood: 200,
-                food: 100,
-                rum: 50,
-                gunpowder: 40,
-            });
-
-            const [ship, setShip] = useState({
-                level: 1,
-                hullHp: 100,
-                maxHullHp: 100,
-                cannons: 2,
-            });
-
-            const [morale, setMorale] = useState(85);
-            const [activeSpecialists, setActiveSpecialists] = useState([]);
-            const [troops, setTroops] = useState({ swordsman: 3, musketeer: 1, grenadier: 0, brute: 0 });
-            const [logs, setLogs] = useState(["Selamat datang di Pocket Pirates! Siapkan kapalnya, Kapten."]);
+            const [resources, setResources] = useState(initialData?.resources || DEFAULT_RESOURCES);
+            const [ship, setShip] = useState(initialData?.ship || DEFAULT_SHIP);
+            const [morale, setMorale] = useState(initialData?.morale ?? DEFAULT_MORALE);
+            const [activeSpecialists, setActiveSpecialists] = useState(initialData?.activeSpecialists || DEFAULT_SPECIALISTS);
+            const [troops, setTroops] = useState(initialData?.troops || DEFAULT_TROOPS);
+            const [logs, setLogs] = useState(initialData?.logs || DEFAULT_LOGS);
 
             // State Peta & Target RTS
             const [shipPos, setShipPos] = useState({ x: 150, y: 150 });
             const [selectedTarget, setSelectedTarget] = useState(null);
-            const [isSailing, setIsSailing] = useState(false);
+            const [saveStatus, setSaveStatus] = useState("Tersimpan");
 
             // Targets di peta
             const targets = [
@@ -94,6 +119,26 @@
                 { id: 3, name: "Benteng Skull Atoll", type: "fort", x: 280, y: 280, difficulty: "Sangat Sulit", powerReq: 380, loot: { gold: 800, gunpowder: 60 } },
                 { id: 4, name: "Area Laut Dalam", type: "monster", x: 100, y: 290, difficulty: "Bahaya", powerReq: 250, loot: { gold: 500, food: 100 } },
             ];
+
+            // --- AUTO-SAVE KE LOCALSTORAGE SETIAP PERUBAHAN STATE ---
+            useEffect(() => {
+                const gameState = {
+                    resources,
+                    ship,
+                    morale,
+                    activeSpecialists,
+                    troops,
+                    logs
+                };
+
+                try {
+                    localStorage.setItem(SAVE_KEY, JSON.stringify(gameState));
+                    setSaveStatus("Tersimpan");
+                } catch (e) {
+                    console.error("Gagal menyimpan game:", e);
+                    setSaveStatus("Gagal Menyimpan");
+                }
+            }, [resources, ship, morale, activeSpecialists, troops, logs]);
 
             // --- FORMULA KALKULASI POWER LEVEL ---
             const totalTroopsCount = Object.values(troops).reduce((a, b) => a + b, 0);
@@ -110,7 +155,21 @@
 
             // Logging Helper
             const addLog = (msg) => {
-                setLogs(prev => [ `[${new Date().toLocaleTimeString()}] ${msg}`, ...prev.slice(0, 19)]);
+                setLogs(prev => [`[${new Date().toLocaleTimeString()}] ${msg}`, ...prev.slice(0, 19)]);
+            };
+
+            // RESET SAVE GAME
+            const handleResetGame = () => {
+                if (window.confirm("Apakah kamu yakin ingin meriset seluruh progress game Pocket Pirates?")) {
+                    localStorage.removeItem(SAVE_KEY);
+                    setResources(DEFAULT_RESOURCES);
+                    setShip(DEFAULT_SHIP);
+                    setMorale(DEFAULT_MORALE);
+                    setActiveSpecialists(DEFAULT_SPECIALISTS);
+                    setTroops(DEFAULT_TROOPS);
+                    setLogs(["Game telah di-reset! Selamat berpetualang dari awal, Kapten."]);
+                    setSelectedTarget(null);
+                }
             };
 
             // Loop Otomatis: Konsumsi Sumber Daya & Morale
@@ -124,12 +183,10 @@
                         const newFood = Math.max(0, prev.food - finalFoodCons);
                         let newRum = prev.rum;
 
-                        // Jika makanan habis, morale turun cepat
                         if (newFood === 0) {
                             setMorale(m => Math.max(0, m - 5));
                             addLog("PERINGATAN: Stok makanan habis! Morale kru menurun drastis!");
                         } else {
-                            // Konsumsi rum wajar
                             newRum = Math.max(0, prev.rum - 1);
                         }
 
@@ -160,7 +217,6 @@
 
             // --- AKSI GAME ---
             const handleUpgradeShip = () => {
-                const currentTier = SHIP_TIERS[ship.level - 1];
                 const nextTier = SHIP_TIERS[ship.level];
                 if (!nextTier) return addLog("Kapal kamu sudah mencapai level maksimum!");
 
@@ -219,8 +275,8 @@
                 setTimeout(() => {
                     const caught = Math.floor(Math.random() * 15) + 5;
                     setResources(r => ({ ...r, food: r.food + caught }));
-                    addLog(`BERHASIL MAMCING! Mendapatkan +${caught} Makanan.`);
-                }, 1500);
+                    addLog(`BERHASIL MANCING! Mendapatkan +${caught} Makanan.`);
+                }, 1200);
             };
 
             // PERTEMPURAN & RAID SIMULATOR
@@ -236,7 +292,6 @@
                 addLog(`Melakukan aksi [${mode.toUpperCase()}] ke ${target.name}...`);
 
                 if (roll <= winChance) {
-                    // KEMENANGAN
                     const goldGained = target.loot.gold || 0;
                     const woodGained = target.loot.wood || 0;
                     const foodGained = target.loot.food || 0;
@@ -249,14 +304,12 @@
                     setMorale(m => Math.min(100, m + 10));
                     addLog(`KEMENANGAN TELAK! Memperoleh ${goldGained} Gold, ${woodGained} Wood.`);
                 } else {
-                    // KEKALAHAN
                     const hullDamage = Math.floor(Math.random() * 25) + 10;
                     setShip(s => ({ ...s, hullHp: Math.max(0, s.hullHp - hullDamage) }));
                     setMorale(m => Math.max(0, m - 15));
                     addLog(`SERANGAN GAGAL! Lambung kapal mengalami kerusakan -${hullDamage} HP! Morale turun.`);
                 }
 
-                // Konsumsi mesiu jika meriam
                 if (mode === 'bombard') {
                     setResources(r => ({ ...r, gunpowder: Math.max(0, r.gunpowder - 10) }));
                 }
@@ -265,92 +318,102 @@
             };
 
             return (
-                <div class="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans">
-                    <!-- HEADER BAR -->
-                    <header class="bg-slate-900 border-b border-slate-800 p-4 sticky top-0 z-50 shadow-lg">
-                        <div class="max-w-7xl mx-auto flex flex-wrap justify-between items-center gap-4">
-                            <div class="flex items-center space-x-3">
-                                <div class="bg-amber-500 p-2 rounded-lg text-slate-950 font-bold font-pixel text-xs">
+                <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans">
+                    {/* HEADER BAR */}
+                    <header className="bg-slate-900 border-b border-slate-800 p-4 sticky top-0 z-50 shadow-lg">
+                        <div className="max-w-7xl mx-auto flex flex-wrap justify-between items-center gap-4">
+                            <div className="flex items-center space-x-3">
+                                <div className="bg-amber-500 p-2 rounded-lg text-slate-950 font-bold font-pixel text-xs">
                                     POCKET PIRATES
                                 </div>
-                                <div class="text-xs text-slate-400">
-                                    Power Level: <span class="font-bold text-amber-400 text-sm">{powerLevel}</span>
+                                <div className="text-xs text-slate-400">
+                                    Power Level: <span className="font-bold text-amber-400 text-sm">{powerLevel}</span>
+                                </div>
+                                <div className="text-[10px] bg-slate-800 px-2 py-0.5 rounded text-emerald-400 border border-slate-700">
+                                    💾 {saveStatus}
                                 </div>
                             </div>
 
-                            <!-- RESOURSES -->
-                            <div class="flex flex-wrap items-center gap-4 text-xs font-semibold">
-                                <div class="bg-slate-800 px-3 py-1.5 rounded border border-slate-700 flex items-center space-x-1">
-                                    <span class="text-amber-400">🪙 Emas:</span>
+                            {/* RESOURSES & RESET */}
+                            <div className="flex flex-wrap items-center gap-3 text-xs font-semibold">
+                                <div className="bg-slate-800 px-3 py-1.5 rounded border border-slate-700 flex items-center space-x-1">
+                                    <span className="text-amber-400">🪙 Emas:</span>
                                     <span>{resources.gold}</span>
                                 </div>
-                                <div class="bg-slate-800 px-3 py-1.5 rounded border border-slate-700 flex items-center space-x-1">
-                                    <span class="text-amber-700">🪵 Kayu:</span>
+                                <div className="bg-slate-800 px-3 py-1.5 rounded border border-slate-700 flex items-center space-x-1">
+                                    <span className="text-amber-700">🪵 Kayu:</span>
                                     <span>{resources.wood}</span>
                                 </div>
-                                <div class="bg-slate-800 px-3 py-1.5 rounded border border-slate-700 flex items-center space-x-1">
-                                    <span class="text-emerald-400">🍖 Makanan:</span>
+                                <div className="bg-slate-800 px-3 py-1.5 rounded border border-slate-700 flex items-center space-x-1">
+                                    <span className="text-emerald-400">🍖 Makanan:</span>
                                     <span>{resources.food}</span>
                                 </div>
-                                <div class="bg-slate-800 px-3 py-1.5 rounded border border-slate-700 flex items-center space-x-1">
-                                    <span class="text-purple-400">🍾 Rum:</span>
+                                <div className="bg-slate-800 px-3 py-1.5 rounded border border-slate-700 flex items-center space-x-1">
+                                    <span className="text-purple-400">🍾 Rum:</span>
                                     <span>{resources.rum}</span>
                                 </div>
-                                <div class="bg-slate-800 px-3 py-1.5 rounded border border-slate-700 flex items-center space-x-1">
-                                    <span class="text-red-400">💣 Mesiu:</span>
+                                <div className="bg-slate-800 px-3 py-1.5 rounded border border-slate-700 flex items-center space-x-1">
+                                    <span className="text-red-400">💣 Mesiu:</span>
                                     <span>{resources.gunpowder}</span>
                                 </div>
-                                <div class="bg-slate-800 px-3 py-1.5 rounded border border-slate-700 flex items-center space-x-1">
-                                    <span class="text-sky-400">😊 Morale:</span>
-                                    <span class={morale < 30 ? "text-red-500 animate-pulse font-bold" : ""}>{morale}%</span>
+                                <div className="bg-slate-800 px-3 py-1.5 rounded border border-slate-700 flex items-center space-x-1">
+                                    <span className="text-sky-400">😊 Morale:</span>
+                                    <span className={morale < 30 ? "text-red-500 animate-pulse font-bold" : ""}>{morale}%</span>
                                 </div>
+                                
+                                <button 
+                                    onClick={handleResetGame}
+                                    className="bg-red-900/60 hover:bg-red-700 text-red-200 border border-red-700 text-xs px-2.5 py-1.5 rounded transition font-bold"
+                                    title="Hapus progress LocalStorage & mulai baru"
+                                >
+                                    🔄 Reset
+                                </button>
                             </div>
                         </div>
                     </header>
 
-                    <!-- CONTAINER UTAMA GAME -->
-                    <main class="max-w-7xl mx-auto w-full grid grid-cols-1 lg:grid-cols-3 gap-6 p-4 flex-grow">
+                    {/* CONTAINER UTAMA GAME */}
+                    <main className="max-w-7xl mx-auto w-full grid grid-cols-1 lg:grid-cols-3 gap-6 p-4 flex-grow">
                         
-                        <!-- KOLOM KIRI & TENGAH: PETA 2D & LOGS -->
-                        <div class="lg:col-span-2 flex flex-col gap-6">
+                        {/* KOLOM KIRI & TENGAH: PETA 2D & LOGS */}
+                        <div className="lg:col-span-2 flex flex-col gap-6">
                             
-                            <!-- CANVAS MAP SIMULATION -->
-                            <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 flex flex-col shadow-inner">
-                                <div class="flex justify-between items-center mb-3">
-                                    <h2 class="font-bold text-amber-400 text-sm uppercase tracking-wider flex items-center gap-2">
+                            {/* CANVAS MAP SIMULATION */}
+                            <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 flex flex-col shadow-inner">
+                                <div className="flex justify-between items-center mb-3">
+                                    <h2 className="font-bold text-amber-400 text-sm uppercase tracking-wider flex items-center gap-2">
                                         <span>🗺️</span> Peta Lautan & Target RTS
                                     </h2>
-                                    <button onClick={handleFish} class="bg-sky-600 hover:bg-sky-500 text-white font-bold text-xs px-3 py-1.5 rounded shadow transition">
+                                    <button onClick={handleFish} className="bg-sky-600 hover:bg-sky-500 text-white font-bold text-xs px-3 py-1.5 rounded shadow transition">
                                         🎣 Lempar Kail (Mancing)
                                     </button>
                                 </div>
 
-                                <div class="relative w-full h-80 bg-slate-900 rounded-lg border-2 border-slate-800 overflow-hidden bg-ocean shadow-inner">
-                                    <!-- Grid Pattern Background -->
-                                    <div class="absolute inset-0 opacity-10 bg-[radial-gradient(#38bdf8_1px,transparent_1px)] [background-size:16px_16px]"></div>
+                                <div className="relative w-full h-80 bg-slate-900 rounded-lg border-2 border-slate-800 overflow-hidden bg-ocean shadow-inner">
+                                    <div className="absolute inset-0 opacity-10 bg-[radial-gradient(#38bdf8_1px,transparent_1px)] [background-size:16px_16px]"></div>
 
-                                    <!-- Kapal Pemain -->
+                                    {/* Kapal Pemain */}
                                     <div 
-                                        class="absolute transition-all duration-500 transform -translate-x-1/2 -translate-y-1/2 text-2xl cursor-pointer filter drop-shadow-md"
+                                        className="absolute transition-all duration-500 transform -translate-x-1/2 -translate-y-1/2 text-2xl cursor-pointer filter drop-shadow-md"
                                         style={{ left: `${shipPos.x}px`, top: `${shipPos.y}px` }}
                                         title="Kapal Kamu"
                                     >
                                         ⛵
                                     </div>
 
-                                    <!-- Target NPC/Pulau -->
+                                    {/* Target NPC/Pulau */}
                                     {targets.map(t => (
                                         <button
                                             key={t.id}
                                             onClick={() => setSelectedTarget(t)}
-                                            class={`absolute transform -translate-x-1/2 -translate-y-1/2 p-2 rounded-full border-2 transition-all hover:scale-125 ${
+                                            className={`absolute transform -translate-x-1/2 -translate-y-1/2 p-2 rounded-full border-2 transition-all hover:scale-125 ${
                                                 t.type === 'island' ? 'bg-emerald-900 border-emerald-500' :
                                                 t.type === 'ship' ? 'bg-amber-900 border-amber-500' :
                                                 t.type === 'fort' ? 'bg-red-900 border-red-500' : 'bg-purple-900 border-purple-500'
                                             }`}
                                             style={{ left: `${t.x}px`, top: `${t.y}px` }}
                                         >
-                                            <span class="text-xs">
+                                            <span className="text-xs">
                                                 {t.type === 'island' ? '🏝️' : t.type === 'ship' ? '⛵' : t.type === 'fort' ? '🏰' : '🐙'}
                                             </span>
                                         </button>
@@ -358,94 +421,93 @@
                                 </div>
                             </div>
 
-                            <!-- LOGS EVENT -->
-                            <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 h-48 flex flex-col">
-                                <h3 class="font-bold text-xs uppercase text-slate-400 mb-2">📜 Log Kapten & Event</h3>
-                                <div class="flex-grow overflow-y-auto space-y-1 text-xs font-mono text-slate-300 pr-2">
+                            {/* LOGS EVENT */}
+                            <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 h-48 flex flex-col">
+                                <h3 className="font-bold text-xs uppercase text-slate-400 mb-2">📜 Log Kapten & Event</h3>
+                                <div className="flex-grow overflow-y-auto space-y-1 text-xs font-mono text-slate-300 pr-2">
                                     {logs.map((log, idx) => (
-                                        <div key={idx} class="border-b border-slate-800/50 pb-1">{log}</div>
+                                        <div key={idx} className="border-b border-slate-800/50 pb-1">{log}</div>
                                     ))}
                                 </div>
                             </div>
 
                         </div>
 
-                        <!-- KOLOM KANAN: MANAJEMEN KAPAL, KRU & POPUP ANALISIS -->
-                        <div class="flex flex-col gap-6">
+                        {/* KOLOM KANAN: MANAJEMEN KAPAL, KRU & POPUP ANALISIS */}
+                        <div className="flex flex-col gap-6">
                             
-                            <!-- POPUP ANALYSIS JIKA TARGET DIPILIH -->
+                            {/* POPUP ANALYSIS JIKA TARGET DIPILIH */}
                             {selectedTarget && (
-                                <div class="bg-amber-950/40 border-2 border-amber-500/80 rounded-xl p-4 shadow-xl animate-fade-in">
-                                    <div class="flex justify-between items-start mb-2">
-                                        <h3 class="font-bold text-amber-400 text-sm">⚔️ ANALISIS TACTICAL: {selectedTarget.name}</h3>
-                                        <button onClick={() => setSelectedTarget(null)} class="text-slate-400 hover:text-white font-bold">✕</button>
+                                <div className="bg-amber-950/40 border-2 border-amber-500/80 rounded-xl p-4 shadow-xl animate-fade-in">
+                                    <div className="flex justify-between items-start mb-2">
+                                        <h3 className="font-bold text-amber-400 text-sm">⚔️ ANALISIS TACTICAL: {selectedTarget.name}</h3>
+                                        <button onClick={() => setSelectedTarget(null)} className="text-slate-400 hover:text-white font-bold">✕</button>
                                     </div>
-                                    <div class="text-xs space-y-1.5 mb-4 text-slate-300">
-                                        <div>Power Target: <span class="font-bold text-red-400">{selectedTarget.powerReq}</span></div>
-                                        <div>Peluang Menang: <span class="font-bold text-emerald-400">{Math.min(95, Math.max(10, Math.floor((powerLevel / selectedTarget.powerReq) * 60)))}%</span></div>
+                                    <div className="text-xs space-y-1.5 mb-4 text-slate-300">
+                                        <div>Power Target: <span className="font-bold text-red-400">{selectedTarget.powerReq}</span></div>
+                                        <div>Peluang Menang: <span className="font-bold text-emerald-400">{Math.min(95, Math.max(10, Math.floor((powerLevel / selectedTarget.powerReq) * 60)))}%</span></div>
                                         <div>Potensi Loot: Emas +{selectedTarget.loot.gold}</div>
                                     </div>
-                                    <div class="grid grid-cols-2 gap-2">
-                                        <button onClick={() => handleExecuteAttack('bombard')} class="bg-red-600 hover:bg-red-500 text-white font-bold py-1.5 px-2 rounded text-xs">
+                                    <div className="grid grid-cols-2 gap-2">
+                                        <button onClick={() => handleExecuteAttack('bombard')} className="bg-red-600 hover:bg-red-500 text-white font-bold py-1.5 px-2 rounded text-xs">
                                             💣 Tembak Meriam
                                         </button>
-                                        <button onClick={() => handleExecuteAttack('board')} class="bg-amber-600 hover:bg-amber-500 text-white font-bold py-1.5 px-2 rounded text-xs">
+                                        <button onClick={() => handleExecuteAttack('board')} className="bg-amber-600 hover:bg-amber-500 text-white font-bold py-1.5 px-2 rounded text-xs">
                                             ⚔️ Serbu (Boarding)
                                         </button>
                                     </div>
                                 </div>
                             )}
 
-                            <!-- STATUS & UPGRADE KAPAL -->
-                            <div class="bg-slate-900 border border-slate-800 rounded-xl p-4">
-                                <h3 class="font-bold text-sm text-amber-400 mb-3">⚓ Status Kapal</h3>
-                                <div class="text-xs space-y-2 mb-4">
-                                    <div class="flex justify-between">
-                                        <span class="text-slate-400">Tipe Kapal:</span>
-                                        <span class="font-semibold">{SHIP_TIERS[ship.level - 1].name} (Lvl {ship.level})</span>
+                            {/* STATUS & UPGRADE KAPAL */}
+                            <div className="bg-slate-900 border border-slate-800 rounded-xl p-4">
+                                <h3 className="font-bold text-sm text-amber-400 mb-3">⚓ Status Kapal</h3>
+                                <div className="text-xs space-y-2 mb-4">
+                                    <div className="flex justify-between">
+                                        <span className="text-slate-400">Tipe Kapal:</span>
+                                        <span className="font-semibold">{SHIP_TIERS[ship.level - 1].name} (Lvl {ship.level})</span>
                                     </div>
-                                    <div class="flex justify-between items-center">
-                                        <span class="text-slate-400">Lambung (Hull HP):</span>
-                                        <span class="font-semibold">{ship.hullHp} / {ship.maxHullHp}</span>
+                                    <div className="flex justify-between items-center">
+                                        <span className="text-slate-400">Lambung (Hull HP):</span>
+                                        <span className="font-semibold">{ship.hullHp} / {ship.maxHullHp}</span>
                                     </div>
-                                    <!-- Healthbar -->
-                                    <div class="w-full bg-slate-800 rounded-full h-2 overflow-hidden">
-                                        <div class="bg-emerald-500 h-2 rounded-full" style={{ width: `${(ship.hullHp / ship.maxHullHp) * 100}%` }}></div>
+                                    <div className="w-full bg-slate-800 rounded-full h-2 overflow-hidden">
+                                        <div className="bg-emerald-500 h-2 rounded-full" style={{ width: `${(ship.hullHp / ship.maxHullHp) * 100}%` }}></div>
                                     </div>
-                                    <div class="flex justify-between">
-                                        <span class="text-slate-400">Slot Meriam:</span>
-                                        <span class="font-semibold">{ship.cannons} / {SHIP_TIERS[ship.level - 1].maxCannons}</span>
+                                    <div className="flex justify-between">
+                                        <span className="text-slate-400">Slot Meriam:</span>
+                                        <span className="font-semibold">{ship.cannons} / {SHIP_TIERS[ship.level - 1].maxCannons}</span>
                                     </div>
-                                    <div class="flex justify-between">
-                                        <span class="text-slate-400">Kapasitas Kru:</span>
-                                        <span class="font-semibold">{totalTroopsCount} / {SHIP_TIERS[ship.level - 1].maxCrew}</span>
+                                    <div className="flex justify-between">
+                                        <span className="text-slate-400">Kapasitas Kru:</span>
+                                        <span className="font-semibold">{totalTroopsCount} / {SHIP_TIERS[ship.level - 1].maxCrew}</span>
                                     </div>
                                 </div>
 
-                                <div class="grid grid-cols-2 gap-2">
-                                    <button onClick={handleUpgradeShip} class="bg-amber-600 hover:bg-amber-500 text-white font-bold text-xs py-2 px-2 rounded transition">
+                                <div className="grid grid-cols-2 gap-2">
+                                    <button onClick={handleUpgradeShip} className="bg-amber-600 hover:bg-amber-500 text-white font-bold text-xs py-2 px-2 rounded transition">
                                         ⬆️ Upgrade Kapal
                                     </button>
-                                    <button onClick={handleBuyCannon} class="bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-bold text-xs py-2 px-2 rounded transition">
+                                    <button onClick={handleBuyCannon} className="bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-bold text-xs py-2 px-2 rounded transition">
                                         💥 Beli Meriam
                                     </button>
                                 </div>
                             </div>
 
-                            <!-- MANAJEMEN TROOPS -->
-                            <div class="bg-slate-900 border border-slate-800 rounded-xl p-4">
-                                <h3 class="font-bold text-sm text-amber-400 mb-3">🗡️ Prajurit Tempur</h3>
-                                <div class="grid grid-cols-2 gap-2 mb-3">
+                            {/* MANAJEMEN TROOPS */}
+                            <div className="bg-slate-900 border border-slate-800 rounded-xl p-4">
+                                <h3 className="font-bold text-sm text-amber-400 mb-3">🗡️ Prajurit Tempur</h3>
+                                <div className="grid grid-cols-2 gap-2 mb-3">
                                     {TROOP_TYPES.map(t => (
-                                        <div key={t.id} class="bg-slate-950 p-2 rounded border border-slate-800 text-xs">
-                                            <div class="font-bold flex justify-between">
+                                        <div key={t.id} className="bg-slate-950 p-2 rounded border border-slate-800 text-xs">
+                                            <div className="font-bold flex justify-between">
                                                 <span>{t.name}</span>
-                                                <span class="text-amber-400">{troops[t.id]}</span>
+                                                <span className="text-amber-400">{troops[t.id]}</span>
                                             </div>
-                                            <div class="text-[10px] text-slate-400 mb-1">Power: +{t.power}</div>
+                                            <div className="text-[10px] text-slate-400 mb-1">Power: +{t.power}</div>
                                             <button 
                                                 onClick={() => handleRecruitTroop(t.id, t.gold)}
-                                                class="w-full bg-slate-800 hover:bg-slate-700 text-amber-300 font-bold py-1 rounded text-[10px] border border-slate-700"
+                                                className="w-full bg-slate-800 hover:bg-slate-700 text-amber-300 font-bold py-1 rounded text-[10px] border border-slate-700"
                                             >
                                                 Rekrut ({t.gold}G)
                                             </button>
@@ -454,22 +516,22 @@
                                 </div>
                             </div>
 
-                            <!-- KRU SPESIALIST -->
-                            <div class="bg-slate-900 border border-slate-800 rounded-xl p-4">
-                                <h3 class="font-bold text-sm text-amber-400 mb-3">👨‍✈️ Specialist Crew</h3>
-                                <div class="space-y-2 max-h-40 overflow-y-auto pr-1">
+                            {/* KRU SPESIALIST */}
+                            <div className="bg-slate-900 border border-slate-800 rounded-xl p-4">
+                                <h3 className="font-bold text-sm text-amber-400 mb-3">👨‍✈️ Specialist Crew</h3>
+                                <div className="space-y-2 max-h-40 overflow-y-auto pr-1">
                                     {SPECIALISTS.map(s => {
                                         const isHired = activeSpecialists.includes(s.id);
                                         return (
-                                            <div key={s.id} class="flex justify-between items-center bg-slate-950 p-2 rounded border border-slate-800 text-xs">
+                                            <div key={s.id} className="flex justify-between items-center bg-slate-950 p-2 rounded border border-slate-800 text-xs">
                                                 <div>
-                                                    <div class="font-bold">{s.name}</div>
-                                                    <div class="text-[10px] text-slate-400">{s.desc}</div>
+                                                    <div className="font-bold">{s.name}</div>
+                                                    <div className="text-[10px] text-slate-400">{s.desc}</div>
                                                 </div>
                                                 <button
                                                     disabled={isHired}
                                                     onClick={() => handleHireSpecialist(s.id, s.costGold)}
-                                                    class={`px-2 py-1 rounded text-[10px] font-bold ${
+                                                    className={`px-2 py-1 rounded text-[10px] font-bold ${
                                                         isHired ? 'bg-emerald-900/50 text-emerald-400 border border-emerald-800' : 'bg-amber-600 hover:bg-amber-500 text-white'
                                                     }`}
                                                 >
@@ -492,3 +554,12 @@
     </script>
 </body>
 </html>
+```
+
+### Petunjuk Tambahan untuk Deployment:
+
+1. **Struktur Folder di GitHub**:
+   - Pastikan nama filenya adalah tepat **`index.html`** (huruf kecil semua) dan berada di folder **root** (bukan di dalam subfolder).
+
+2. **Pengaturan Vercel**:
+   - Jika mendeploy file tunggal ini di Vercel, pilih **Other** / **Static Site** pada pilihan *Framework Preset* (karena ini adalah file HTML statis dengan CDN, bukan React app yang menggunakan npm/Webpack/Vite).
