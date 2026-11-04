@@ -3,549 +3,630 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Pocket Pirates - Game Simulator Bajak Laut</title>
+    <title>Pocket Pirates - Strategic Nautical RPG</title>
     <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- React & ReactDOM CDN -->
     <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-    <!-- Babel CDN untuk merender JSX -->
+    <!-- Babel CDN -->
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-    <!-- Lucide Icons -->
-    <script src="https://unpkg.com/lucide@latest"></script>
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Yuji+Boku&family=Inter:wght@400;600;700&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Inter:wght@400;500;600;700;800&display=swap');
         .font-pixel { font-family: 'Press Start 2P', monospace; }
-        .bg-ocean { background-color: #0f172a; }
-        /* Custom Scrollbar */
-        ::-webkit-scrollbar { width: 6px; }
-        ::-webkit-scrollbar-track { background: #1e293b; }
-        ::-webkit-scrollbar-thumb { background: #475569; border-radius: 3px; }
+        .bg-ocean { background-color: #0c192c; }
+        ::-webkit-scrollbar { width: 5px; height: 5px; }
+        ::-webkit-scrollbar-track { background: #0f172a; }
+        ::-webkit-scrollbar-thumb { background: #334155; border-radius: 4px; }
+        
+        @keyframes floatSlow {
+            0%, 100% { transform: translateY(0px) rotate(0deg); }
+            50% { transform: translateY(-6px) rotate(1deg); }
+        }
+        .animate-ship { animation: floatSlow 3.5s ease-in-out infinite; }
     </style>
 </head>
-<body class="bg-slate-950 text-slate-100 font-sans antialiased selection:bg-amber-500 selection:text-slate-950">
+<body className="bg-slate-950 text-slate-100 font-sans antialiased selection:bg-amber-500 selection:text-slate-950">
     <div id="root"></div>
 
     <script type="text/babel">
-        const { useState, useEffect } = React;
+        const { useState, useEffect, useRef } = React;
 
-        const SAVE_KEY = 'pocket_pirates_save_v1';
+        const SAVE_KEY = 'pocket_pirates_v2_save';
+        const MAP_BOUNDS = { width: 800, height: 600 };
 
-        // --- KONSTANTA DEFAULT INITIAL STATE ---
-        const DEFAULT_RESOURCES = {
-            gold: 500,
-            wood: 200,
-            food: 100,
-            rum: 50,
-            gunpowder: 40,
-        };
-
-        const DEFAULT_SHIP = {
-            level: 1,
-            hullHp: 100,
-            maxHullHp: 100,
-            cannons: 2,
-        };
-
-        const DEFAULT_MORALE = 85;
-        const DEFAULT_SPECIALISTS = [];
-        const DEFAULT_TROOPS = { swordsman: 3, musketeer: 1, grenadier: 0, brute: 0 };
-        const DEFAULT_LOGS = ["Selamat datang di Pocket Pirates! Siapkan kapalnya, Kapten."];
-
-        // --- KONSTANTA TINGKATAN KAPAL & UNIT ---
-        const SHIP_TIERS = [
-            { level: 1, name: "Raft / Sloop Kecil", maxCrew: 10, maxCannons: 4, upgradeWood: 0, upgradeGold: 0 },
-            { level: 2, name: "Sloop Lanjutan", maxCrew: 12, maxCannons: 4, upgradeWood: 100, upgradeGold: 150 },
-            { level: 3, name: "Schooner", maxCrew: 20, maxCannons: 8, upgradeWood: 250, upgradeGold: 400 },
-            { level: 4, name: "Brigantine Ramping", maxCrew: 25, maxCannons: 10, upgradeWood: 450, upgradeGold: 700 },
-            { level: 5, name: "Brigantine Utama", maxCrew: 30, maxCannons: 12, upgradeWood: 700, upgradeGold: 1100 },
-            { level: 6, name: "Frigate Ringan", maxCrew: 45, maxCannons: 18, upgradeWood: 1100, upgradeGold: 1800 },
-            { level: 7, name: "Frigate Tempur", maxCrew: 60, maxCannons: 24, upgradeWood: 1600, upgradeGold: 2600 },
-            { level: 8, name: "Frigate Berat", maxCrew: 60, maxCannons: 24, upgradeWood: 2200, upgradeGold: 3600 },
-            { level: 9, name: "Galleon Perang", maxCrew: 85, maxCannons: 34, upgradeWood: 3000, upgradeGold: 5000 },
-            { level: 10, name: "Man-of-War Dominator", maxCrew: 100, maxCannons: 40, upgradeWood: 4500, upgradeGold: 8000 },
+        // STARTER TRADITIONAL SHIPS WITH UNIQUE BUFFS
+        const STARTER_SHIPS = [
+            {
+                id: 'jung',
+                name: 'Nusantara Junk (Jung)',
+                origin: 'Southeast Asia',
+                icon: '⛵',
+                description: 'Sturdy multi-layered wooden hull designed for spice trade and endurance in archipelago waters.',
+                buff: 'Hull Resistance +20%, Fishing Gain +25%',
+                baseHull: 120,
+                baseCannons: 2,
+            },
+            {
+                id: 'atakebune',
+                name: 'East Asian Atakebune',
+                origin: 'East Asia',
+                icon: '🏯',
+                description: 'Iron-clad floating fortress with heavy defensive timber and high siege capability.',
+                buff: 'Cannon Firepower +15%, Accuracy +10%',
+                baseHull: 110,
+                baseCannons: 3,
+            },
+            {
+                id: 'caravel',
+                name: 'European Caravel',
+                origin: 'Europe',
+                icon: '🧭',
+                description: 'Light, fast-sailing ship with triangular lateen sails ideal for long-distance discovery.',
+                buff: 'Travel Speed +20%, Food Consumption -15%',
+                baseHull: 90,
+                baseCannons: 2,
+            },
+            {
+                id: 'dhow',
+                name: 'Afro-Arabian Dhow (Sambuk)',
+                origin: 'Africa & Arabia',
+                icon: '🌊',
+                description: 'Highly agile vessel equipped with lateen sails, mastering monsoon wind currents.',
+                buff: 'Flee Success +25%, Base Morale +15%',
+                baseHull: 95,
+                baseCannons: 2,
+            }
         ];
 
-        const SPECIALISTS = [
-            { id: 'helmsman', name: 'Helmsman (Jurumudi)', costGold: 120, desc: 'Kecepatan jelajah +15%, Kabur +20%' },
-            { id: 'navigator', name: 'Navigator', costGold: 150, desc: 'Waktu tempuh -15%, deteksi badai' },
-            { id: 'lookout', name: 'Lookout (Pengintai)', costGold: 100, desc: 'Jarak pandang luas & +Jackpot' },
-            { id: 'cook', name: 'Cook (Koki)', costGold: 110, desc: 'Hemat makanan 25%, Morale stabil' },
-            { id: 'quartermaster', name: 'Quartermaster', costGold: 180, desc: 'Cegah Mutiny & Hemat Gaji' },
-            { id: 'shipwright', name: 'Shipwright (Tukang Kayu)', costGold: 160, desc: 'Auto perbaikan hull saat berlayar' },
-            { id: 'master_gunner', name: 'Master Gunner', costGold: 200, desc: 'Akurasi meriam +15%, Hemat Mesiu 10%' },
+        const FLAGS = [
+            { id: 'flag1', name: 'Golden Skull', symbol: '☠️', color: 'bg-amber-600' },
+            { id: 'flag2', name: 'Sultanate Crescent', symbol: '🌙', color: 'bg-emerald-600' },
+            { id: 'flag3', name: 'Dragon Crest', symbol: '🐉', color: 'bg-red-600' },
+            { id: 'flag4', name: 'Kraken Tentacle', symbol: '🐙', color: 'bg-purple-600' }
         ];
 
-        const TROOP_TYPES = [
-            { id: 'swordsman', name: 'Swordsman', gold: 15, foodCons: 2, power: 5, role: 'Melee/Boarding' },
-            { id: 'musketeer', name: 'Musketeer', gold: 30, foodCons: 1.5, power: 8, role: 'Ranged Damage' },
-            { id: 'grenadier', name: 'Grenadier', gold: 50, foodCons: 1, power: 14, role: 'Siege/Explosive' },
-            { id: 'brute', name: 'Brute', gold: 90, foodCons: 3, power: 22, role: 'Tanker Frontline' },
+        const SPECIALISTS_INFO = [
+            { id: 'helmsman', title: 'Helmsman', cost: 120, advice: "Wind is picking up! Keep our bow into the waves to maintain 15% speed.", role: "Navigation" },
+            { id: 'navigator', title: 'Navigator', cost: 150, advice: "Squall spotted 12 nautical miles north. We can bypass it using current charts.", role: "Cartography" },
+            { id: 'lookout', title: 'Lookout', cost: 100, advice: "Ship ahoy on the horizon! Looks like a merchant trader carrying rum.", role: "Scouting" },
+            { id: 'cook', title: 'Ship Cook', cost: 110, advice: "I salted the fish inventory. Food supplies will last 25% longer now, Captain!", role: "Catering" },
+            { id: 'quartermaster', title: 'Quartermaster', cost: 180, advice: "Morale is holding steady. Discipline is maintained among the deck crew.", role: "Discipline" },
+            { id: 'shipwright', title: 'Shipwright', cost: 160, advice: "Hull timber patched! I'm using spare wood to auto-repair minor leaks.", role: "Maintenance" },
+            { id: 'master_gunner', title: 'Master Gunner', cost: 200, advice: "Cannons loaded with chain shot! Accuracy calibrated at +15%.", role: "Artillery" }
+        ];
+
+        const TROOPS_INFO = [
+            { id: 'swordsman', name: 'Swordsman', cost: 15, power: 5, role: 'Melee / Boarder' },
+            { id: 'musketeer', name: 'Musketeer', cost: 30, power: 8, role: 'Ranged Sharpshooter' },
+            { id: 'grenadier', name: 'Grenadier', cost: 50, power: 14, role: 'Demolition Specialist' },
+            { id: 'brute', name: 'Brute Berserker', cost: 90, power: 22, role: 'Frontline Vanguard' }
+        ];
+
+        const WORLD_NODES = [
+            { id: 1, name: "Siren Reef Isle", type: "island", x: 120, y: 150, powerReq: 80, loot: { gold: 150, wood: 50 } },
+            { id: 2, name: "East India Merchant", type: "ship", x: 450, y: 180, powerReq: 160, loot: { gold: 350, rum: 30 } },
+            { id: 3, name: "Fortified Kraal", type: "fort", x: 680, y: 420, powerReq: 380, loot: { gold: 900, gunpowder: 80 } },
+            { id: 4, name: "Leviathan Lair", type: "monster", x: 220, y: 480, powerReq: 260, loot: { gold: 600, food: 120 } },
+            { id: 5, name: "Floating Black Market", type: "event", x: 720, y: 120, powerReq: 100, loot: { gold: 200, wood: 80 } }
         ];
 
         function PocketPiratesApp() {
-            // HELPER LOAD DARI LOCALSTORAGE
-            const loadSavedState = () => {
-                try {
-                    const saved = localStorage.getItem(SAVE_KEY);
-                    if (saved) {
-                        return JSON.parse(saved);
-                    }
-                } catch (e) {
-                    console.error("Gagal memuat save game dari LocalStorage:", e);
-                }
-                return null;
-            };
+            // STATE MANAGEMENT
+            const [profile, setProfile] = useState(null); // Account creation
+            const [activeView, setActiveView] = useState('deck'); // 'deck' | 'tactical' | 'world'
+            const [resources, setResources] = useState({ gold: 600, wood: 250, food: 120, rum: 60, gunpowder: 40 });
+            const [shipState, setShipState] = useState({ level: 1, hullHp: 100, maxHullHp: 100, cannons: 2 });
+            const [morale, setMorale] = useState(85);
+            const [hiredSpecialists, setHiredSpecialists] = useState([]);
+            const [troops, setTroops] = useState({ swordsman: 3, musketeer: 1, grenadier: 0, brute: 0 });
+            const [logs, setLogs] = useState(["Welcome to Pocket Pirates! Set sail and command the sea."]);
+            
+            // Map Movement State (World View)
+            const [shipPos, setShipPos] = useState({ x: 300, y: 300 });
+            const [targetDestination, setTargetDestination] = useState(null);
+            const [isNavigating, setIsNavigating] = useState(false);
+            const [selectedEncounter, setSelectedEncounter] = useState(null);
 
-            const initialData = loadSavedState();
+            // ONBOARDING FORM STATE
+            const [formName, setFormName] = useState('Sultanate Fleet');
+            const [formFlag, setFormFlag] = useState(FLAGS[0]);
+            const [formShip, setFormShip] = useState(STARTER_SHIPS[0]);
 
-            // --- STATE UTAMA GAME ---
-            const [resources, setResources] = useState(initialData?.resources || DEFAULT_RESOURCES);
-            const [ship, setShip] = useState(initialData?.ship || DEFAULT_SHIP);
-            const [morale, setMorale] = useState(initialData?.morale ?? DEFAULT_MORALE);
-            const [activeSpecialists, setActiveSpecialists] = useState(initialData?.activeSpecialists || DEFAULT_SPECIALISTS);
-            const [troops, setTroops] = useState(initialData?.troops || DEFAULT_TROOPS);
-            const [logs, setLogs] = useState(initialData?.logs || DEFAULT_LOGS);
-
-            // State Peta & Target RTS
-            const [shipPos, setShipPos] = useState({ x: 150, y: 150 });
-            const [selectedTarget, setSelectedTarget] = useState(null);
-            const [saveStatus, setSaveStatus] = useState("Tersimpan");
-
-            // Targets di peta
-            const targets = [
-                { id: 1, name: "Pulau Karang Kecil", type: "island", x: 80, y: 80, difficulty: "Mudah", powerReq: 80, loot: { gold: 120, wood: 40 } },
-                { id: 2, name: "Kapal Dagang Merchant", type: "ship", x: 320, y: 100, difficulty: "Sedang", powerReq: 160, loot: { gold: 300, rum: 25 } },
-                { id: 3, name: "Benteng Skull Atoll", type: "fort", x: 280, y: 280, difficulty: "Sangat Sulit", powerReq: 380, loot: { gold: 800, gunpowder: 60 } },
-                { id: 4, name: "Area Laut Dalam", type: "monster", x: 100, y: 290, difficulty: "Bahaya", powerReq: 250, loot: { gold: 500, food: 100 } },
-            ];
-
-            // --- AUTO-SAVE KE LOCALSTORAGE SETIAP PERUBAHAN STATE ---
+            // LOAD & AUTO-SAVE
             useEffect(() => {
-                const gameState = {
-                    resources,
-                    ship,
-                    morale,
-                    activeSpecialists,
-                    troops,
-                    logs
-                };
-
-                try {
-                    localStorage.setItem(SAVE_KEY, JSON.stringify(gameState));
-                    setSaveStatus("Tersimpan");
-                } catch (e) {
-                    console.error("Gagal menyimpan game:", e);
-                    setSaveStatus("Gagal Menyimpan");
+                const saved = localStorage.getItem(SAVE_KEY);
+                if (saved) {
+                    try {
+                        const parsed = JSON.parse(saved);
+                        if (parsed.profile) {
+                            setProfile(parsed.profile);
+                            setResources(parsed.resources);
+                            setShipState(parsed.shipState);
+                            setMorale(parsed.morale);
+                            setHiredSpecialists(parsed.hiredSpecialists);
+                            setTroops(parsed.troops);
+                            setShipPos(parsed.shipPos || { x: 300, y: 300 });
+                        }
+                    } catch(e) { console.error("Save load error", e); }
                 }
-            }, [resources, ship, morale, activeSpecialists, troops, logs]);
+            }, []);
 
-            // --- FORMULA KALKULASI POWER LEVEL ---
-            const totalTroopsCount = Object.values(troops).reduce((a, b) => a + b, 0);
-            const totalTroopPower = (troops.swordsman * 5) + (troops.musketeer * 8) + (troops.grenadier * 14) + (troops.brute * 22);
-            const cannonPower = ship.cannons * 12;
-            const specialistBonus = activeSpecialists.length * 20;
-
-            const powerLevel = Math.floor(
-                (ship.level * 30) + 
-                (cannonPower * 25 / 10) + 
-                (totalTroopPower * 25 / 10) + 
-                specialistBonus
-            );
-
-            // Logging Helper
-            const addLog = (msg) => {
-                setLogs(prev => [`[${new Date().toLocaleTimeString()}] ${msg}`, ...prev.slice(0, 19)]);
-            };
-
-            // RESET SAVE GAME
-            const handleResetGame = () => {
-                if (window.confirm("Apakah kamu yakin ingin meriset seluruh progress game Pocket Pirates?")) {
-                    localStorage.removeItem(SAVE_KEY);
-                    setResources(DEFAULT_RESOURCES);
-                    setShip(DEFAULT_SHIP);
-                    setMorale(DEFAULT_MORALE);
-                    setActiveSpecialists(DEFAULT_SPECIALISTS);
-                    setTroops(DEFAULT_TROOPS);
-                    setLogs(["Game telah di-reset! Selamat berpetualang dari awal, Kapten."]);
-                    setSelectedTarget(null);
-                }
-            };
-
-            // Loop Otomatis: Konsumsi Sumber Daya & Morale
             useEffect(() => {
-                const interval = setInterval(() => {
-                    setResources(prev => {
-                        const foodNeeded = Math.ceil(totalTroopsCount * 0.5);
-                        const hasCook = activeSpecialists.includes('cook');
-                        const finalFoodCons = hasCook ? Math.ceil(foodNeeded * 0.75) : foodNeeded;
-
-                        const newFood = Math.max(0, prev.food - finalFoodCons);
-                        let newRum = prev.rum;
-
-                        if (newFood === 0) {
-                            setMorale(m => Math.max(0, m - 5));
-                            addLog("PERINGATAN: Stok makanan habis! Morale kru menurun drastis!");
-                        } else {
-                            newRum = Math.max(0, prev.rum - 1);
-                        }
-
-                        return { ...prev, food: newFood, rum: newRum };
-                    });
-
-                    // Cek Mutiny
-                    if (morale < 20) {
-                        const hasQM = activeSpecialists.includes('quartermaster');
-                        if (!hasQM && Math.random() < 0.3) {
-                            addLog("MUTINY! Morale terlalu rendah! Kru mencuri 50 Gold dan kabur!");
-                            setResources(r => ({ ...r, gold: Math.max(0, r.gold - 50) }));
-                            setMorale(30);
-                        }
-                    }
-
-                    // Auto Repair jika ada Shipwright
-                    if (activeSpecialists.includes('shipwright') && ship.hullHp < ship.maxHullHp && resources.wood >= 5) {
-                        setShip(s => ({ ...s, hullHp: Math.min(s.maxHullHp, s.hullHp + 5) }));
-                        setResources(r => ({ ...r, wood: r.wood - 2 }));
-                        addLog("Shipwright memulihkan +5 HP Lambung menggunakan Kayu.");
-                    }
-
-                }, 8000);
-
-                return () => clearInterval(interval);
-            }, [totalTroopsCount, activeSpecialists, morale, ship.hullHp, resources.wood]);
-
-            // --- AKSI GAME ---
-            const handleUpgradeShip = () => {
-                const nextTier = SHIP_TIERS[ship.level];
-                if (!nextTier) return addLog("Kapal kamu sudah mencapai level maksimum!");
-
-                if (resources.wood >= nextTier.upgradeWood && resources.gold >= nextTier.upgradeGold) {
-                    setResources(r => ({ ...r, wood: r.wood - nextTier.upgradeWood, gold: r.gold - nextTier.upgradeGold }));
-                    setShip(s => ({
-                        ...s,
-                        level: s.level + 1,
-                        maxHullHp: s.maxHullHp + 40,
-                        hullHp: s.maxHullHp + 40
+                if (profile) {
+                    localStorage.setItem(SAVE_KEY, JSON.stringify({
+                        profile, resources, shipState, morale, hiredSpecialists, troops, shipPos
                     }));
-                    addLog(`BERHASIL UPGRADE! Kapal bertambah ke Level ${nextTier.level}: ${nextTier.name}`);
-                } else {
-                    addLog("Sumber daya (Kayu/Emas) tidak cukup untuk upgrade kapal!");
                 }
+            }, [profile, resources, shipState, morale, hiredSpecialists, troops, shipPos]);
+
+            const addLog = (msg) => {
+                setLogs(prev => [`[${new Date().toLocaleTimeString()}] ${msg}`, ...prev.slice(0, 15)]);
             };
 
-            const handleHireSpecialist = (specId, cost) => {
-                if (activeSpecialists.includes(specId)) return;
-                if (resources.gold >= cost) {
-                    setResources(r => ({ ...r, gold: r.gold - cost }));
-                    setActiveSpecialists(prev => [...prev, specId]);
-                    addLog(`Berhasil merekrut kru spesial: ${specId.toUpperCase()}`);
-                } else {
-                    addLog("Emas tidak cukup untuk merekrut kru ini!");
-                }
+            // POWER LEVEL CALCULATION
+            const totalTroops = Object.values(troops).reduce((a, b) => a + b, 0);
+            const troopPower = (troops.swordsman * 5) + (troops.musketeer * 8) + (troops.grenadier * 14) + (troops.brute * 22);
+            const powerLevel = Math.floor((shipState.level * 30) + (shipState.cannons * 25) + troopPower + (hiredSpecialists.length * 20));
+
+            // ONBOARDING COMPLETION
+            const handleCreateFleet = () => {
+                if (!formName.trim()) return;
+                const newProfile = {
+                    fleetName: formName,
+                    flag: formFlag,
+                    starterShip: formShip
+                };
+                setProfile(newProfile);
+                setShipState(s => ({
+                    ...s,
+                    hullHp: formShip.baseHull,
+                    maxHullHp: formShip.baseHull,
+                    cannons: formShip.baseCannons
+                }));
+                addLog(`Fleet "${formName}" established! Flag ship ${formShip.name} ready for adventure.`);
             };
 
-            const handleRecruitTroop = (troopId, cost) => {
-                const tier = SHIP_TIERS[ship.level - 1];
-                if (totalTroopsCount >= tier.maxCrew) return addLog("Kapasitas kru kapal sudah penuh! Upgrade kapal dulu.");
-
-                if (resources.gold >= cost) {
-                    setResources(r => ({ ...r, gold: r.gold - cost }));
-                    setTroops(t => ({ ...t, [troopId]: t[troopId] + 1 }));
-                    addLog(`Merekrut 1 unit ${troopId}`);
-                } else {
-                    addLog("Emas tidak cukup!");
-                }
+            // WORLD MAP MOVEMENT & GLOBE WRAPPER
+            const handleMapClick = (e) => {
+                const rect = e.currentTarget.getBoundingClientRect();
+                const clickX = e.clientX - rect.left;
+                const clickY = e.clientY - rect.top;
+                
+                setTargetDestination({ x: clickX, y: clickY });
+                setIsNavigating(true);
+                addLog(`Course plotted to X:${Math.round(clickX)} Y:${Math.round(clickY)}. Waypoint locked.`);
             };
 
-            const handleBuyCannon = () => {
-                const tier = SHIP_TIERS[ship.level - 1];
-                if (ship.cannons >= tier.maxCannons) return addLog("Slot meriam penuh! Upgrade kapal untuk menambah slot.");
-                if (resources.gold >= 80 && resources.wood >= 20) {
-                    setResources(r => ({ ...r, gold: r.gold - 80, wood: r.wood - 20 }));
-                    setShip(s => ({ ...s, cannons: s.cannons + 1 }));
-                    addLog("Berhasil membeli dan memasang 1 Meriam baru!");
+            // TICK TICK NAVIGATION & SPHERICAL OCEAN WRAP
+            useEffect(() => {
+                if (!isNavigating || !targetDestination) return;
+
+                const timer = setInterval(() => {
+                    setShipPos(prev => {
+                        const dx = targetDestination.x - prev.x;
+                        const dy = targetDestination.y - prev.y;
+                        const dist = Math.sqrt(dx * dx + dy * dy);
+
+                        if (dist < 4) {
+                            setIsNavigating(false);
+                            setTargetDestination(null);
+                            addLog("Destination reached, Captain.");
+                            return prev;
+                        }
+
+                        const speed = 2.5;
+                        let nextX = prev.x + (dx / dist) * speed;
+                        let nextY = prev.y + (dy / dist) * speed;
+
+                        // Globe Wrapping logic (X boundary wraps around)
+                        if (nextX > MAP_BOUNDS.width) nextX = 0;
+                        if (nextX < 0) nextX = MAP_BOUNDS.width;
+
+                        // Check proximity to world encounters (auto-triggers Tactical Close View)
+                        WORLD_NODES.forEach(node => {
+                            const closeDist = Math.hypot(node.x - nextX, node.y - nextY);
+                            if (closeDist < 35) {
+                                setSelectedEncounter(node);
+                                setActiveView('tactical');
+                                setIsNavigating(false);
+                                addLog(`Encounter detected near ${node.name}! Engaging Tactical View.`);
+                            }
+                        });
+
+                        return { x: nextX, y: nextY };
+                    });
+                }, 100);
+
+                return () => clearInterval(timer);
+            }, [isNavigating, targetDestination]);
+
+            // BATTLE RESOLUTION
+            const handleBattleAction = (type) => {
+                if (!selectedEncounter) return;
+                const enc = selectedEncounter;
+                let winRate = Math.min(95, Math.max(15, Math.floor((powerLevel / enc.powerReq) * 60)));
+
+                if (type === 'bombard') winRate += 10;
+                if (type === 'board') winRate += 15;
+
+                const success = Math.random() * 100 <= winRate;
+                if (success) {
+                    setResources(r => ({ ...r, gold: r.gold + enc.loot.gold, wood: r.wood + (enc.loot.wood || 0) }));
+                    setMorale(m => Math.min(100, m + 8));
+                    addLog(`VICTORY! Defeated ${enc.name}. Claimed +${enc.loot.gold} Gold.`);
                 } else {
-                    addLog("Emas (80) atau Kayu (20) tidak mencukupi untuk Meriam!");
+                    const dmg = Math.floor(Math.random() * 20) + 10;
+                    setShipState(s => ({ ...s, hullHp: Math.max(0, s.hullHp - dmg) }));
+                    setMorale(m => Math.max(0, m - 12));
+                    addLog(`DEFEAT! Suffered -${dmg} Hull Damage against ${enc.name}.`);
                 }
+                setSelectedEncounter(null);
+                setActiveView('deck');
             };
 
-            const handleFish = () => {
-                addLog("Melempar kail ke laut...");
+            const handleFishing = () => {
+                addLog("Casting fishing nets...");
                 setTimeout(() => {
-                    const caught = Math.floor(Math.random() * 15) + 5;
+                    const bonus = profile?.starterShip?.id === 'jung' ? 1.25 : 1;
+                    const caught = Math.floor((Math.random() * 12 + 8) * bonus);
                     setResources(r => ({ ...r, food: r.food + caught }));
-                    addLog(`BERHASIL MANCING! Mendapatkan +${caught} Makanan.`);
+                    addLog(`FISHING SUCCESS: Caught +${caught} fresh fish food.`);
                 }, 1200);
             };
 
-            // PERTEMPURAN & RAID SIMULATOR
-            const handleExecuteAttack = (mode) => {
-                if (!selectedTarget) return;
+            // ONBOARDING UI IF NO PROFILE
+            if (!profile) {
+                return (
+                    <div className="min-h-screen bg-slate-950 flex items-center justify-center p-4">
+                        <div className="max-w-2xl w-full bg-slate-900 border-2 border-amber-500/50 rounded-2xl p-6 shadow-2xl space-y-6">
+                            <div className="text-center space-y-2">
+                                <h1 className="text-2xl font-bold text-amber-400 font-pixel tracking-wider">POCKET PIRATES</h1>
+                                <p className="text-xs text-slate-400">Establish your naval dynasty, choose your traditional vessel, and conquer the open seas.</p>
+                            </div>
 
-                const target = selectedTarget;
-                let winChance = Math.min(95, Math.max(10, Math.floor((powerLevel / target.powerReq) * 60)));
-                if (mode === 'bombard' && activeSpecialists.includes('master_gunner')) winChance += 15;
-                if (mode === 'board') winChance += 10;
-
-                const roll = Math.random() * 100;
-                addLog(`Melakukan aksi [${mode.toUpperCase()}] ke ${target.name}...`);
-
-                if (roll <= winChance) {
-                    const goldGained = target.loot.gold || 0;
-                    const woodGained = target.loot.wood || 0;
-                    const foodGained = target.loot.food || 0;
-                    setResources(r => ({
-                        ...r,
-                        gold: r.gold + goldGained,
-                        wood: r.wood + woodGained,
-                        food: r.food + foodGained
-                    }));
-                    setMorale(m => Math.min(100, m + 10));
-                    addLog(`KEMENANGAN TELAK! Memperoleh ${goldGained} Gold, ${woodGained} Wood.`);
-                } else {
-                    const hullDamage = Math.floor(Math.random() * 25) + 10;
-                    setShip(s => ({ ...s, hullHp: Math.max(0, s.hullHp - hullDamage) }));
-                    setMorale(m => Math.max(0, m - 15));
-                    addLog(`SERANGAN GAGAL! Lambung kapal mengalami kerusakan -${hullDamage} HP! Morale turun.`);
-                }
-
-                if (mode === 'bombard') {
-                    setResources(r => ({ ...r, gunpowder: Math.max(0, r.gunpowder - 10) }));
-                }
-
-                setSelectedTarget(null);
-            };
-
-            return (
-                <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans">
-                    {/* HEADER BAR */}
-                    <header className="bg-slate-900 border-b border-slate-800 p-4 sticky top-0 z-50 shadow-lg">
-                        <div className="max-w-7xl mx-auto flex flex-wrap justify-between items-center gap-4">
-                            <div className="flex items-center space-x-3">
-                                <div className="bg-amber-500 p-2 rounded-lg text-slate-950 font-bold font-pixel text-xs">
-                                    POCKET PIRATES
+                            <div className="space-y-4">
+                                <div>
+                                    <label className="block text-xs font-bold text-slate-300 mb-1">Fleet / Nation Name</label>
+                                    <input 
+                                        type="text"
+                                        value={formName}
+                                        onChange={e => setFormName(e.target.value)}
+                                        className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm text-amber-300 focus:outline-none focus:border-amber-500"
+                                        placeholder="e.g. Sultanate Fleet"
+                                    />
                                 </div>
-                                <div className="text-xs text-slate-400">
-                                    Power Level: <span className="font-bold text-amber-400 text-sm">{powerLevel}</span>
+
+                                <div>
+                                    <label className="block text-xs font-bold text-slate-300 mb-2">Select Pirate Flag Insignia</label>
+                                    <div className="grid grid-cols-4 gap-2">
+                                        {FLAGS.map(f => (
+                                            <button
+                                                key={f.id}
+                                                onClick={() => setFormFlag(f)}
+                                                className={`p-3 rounded-lg border text-center transition flex flex-col items-center gap-1 ${
+                                                    formFlag.id === f.id ? 'border-amber-400 bg-amber-500/10' : 'border-slate-800 bg-slate-950 hover:border-slate-700'
+                                                }`}
+                                            >
+                                                <span className="text-xl">{f.symbol}</span>
+                                                <span className="text-[10px] text-slate-300 font-medium">{f.name}</span>
+                                            </button>
+                                        ))}
+                                    </div>
                                 </div>
-                                <div className="text-[10px] bg-slate-800 px-2 py-0.5 rounded text-emerald-400 border border-slate-700">
-                                    💾 {saveStatus}
+
+                                <div>
+                                    <label className="block text-xs font-bold text-slate-300 mb-2">Select Starting Traditional Vessel</label>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                        {STARTER_SHIPS.map(s => (
+                                            <button
+                                                key={s.id}
+                                                onClick={() => setFormShip(s)}
+                                                className={`p-3 rounded-xl border text-left transition flex flex-col justify-between ${
+                                                    formShip.id === s.id ? 'border-amber-400 bg-amber-500/10' : 'border-slate-800 bg-slate-950 hover:border-slate-700'
+                                                }`}
+                                            >
+                                                <div>
+                                                    <div className="flex items-center justify-between mb-1">
+                                                        <span className="font-bold text-xs text-amber-300">{s.icon} {s.name}</span>
+                                                        <span className="text-[9px] bg-slate-800 px-1.5 py-0.5 rounded text-slate-400">{s.origin}</span>
+                                                    </div>
+                                                    <p className="text-[10px] text-slate-400 mb-2 leading-tight">{s.description}</p>
+                                                </div>
+                                                <div className="text-[9px] font-bold text-emerald-400 bg-emerald-950/40 border border-emerald-800/40 p-1.5 rounded">
+                                                    ✨ Buff: {s.buff}
+                                                </div>
+                                            </button>
+                                        ))}
+                                    </div>
                                 </div>
                             </div>
 
-                            {/* RESOURSES & RESET */}
-                            <div className="flex flex-wrap items-center gap-3 text-xs font-semibold">
-                                <div className="bg-slate-800 px-3 py-1.5 rounded border border-slate-700 flex items-center space-x-1">
-                                    <span className="text-amber-400">🪙 Emas:</span>
-                                    <span>{resources.gold}</span>
+                            <button
+                                onClick={handleCreateFleet}
+                                className="w-full bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold py-3 rounded-xl shadow-lg transition text-sm font-pixel"
+                            >
+                                SET SAIL CAPTAIN ⚓
+                            </button>
+                        </div>
+                    </div>
+                );
+            }
+
+            return (
+                <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans">
+                    {/* TOP STATUS HEADER */}
+                    <header className="bg-slate-900 border-b border-slate-800 p-3 sticky top-0 z-50">
+                        <div className="max-w-6xl mx-auto flex flex-wrap justify-between items-center gap-2">
+                            <div className="flex items-center space-x-3">
+                                <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-lg ${profile.flag.color}`}>
+                                    {profile.flag.symbol}
                                 </div>
-                                <div className="bg-slate-800 px-3 py-1.5 rounded border border-slate-700 flex items-center space-x-1">
-                                    <span className="text-amber-700">🪵 Kayu:</span>
-                                    <span>{resources.wood}</span>
+                                <div>
+                                    <h1 className="font-bold text-xs text-amber-400">{profile.fleetName}</h1>
+                                    <div className="text-[10px] text-slate-400">{profile.starterShip.name} • Level {shipState.level}</div>
                                 </div>
-                                <div className="bg-slate-800 px-3 py-1.5 rounded border border-slate-700 flex items-center space-x-1">
-                                    <span className="text-emerald-400">🍖 Makanan:</span>
-                                    <span>{resources.food}</span>
+                                <div className="bg-slate-800 border border-slate-700 px-2 py-0.5 rounded text-[10px] text-amber-300 font-mono">
+                                    ⚔️ Power: {powerLevel}
                                 </div>
-                                <div className="bg-slate-800 px-3 py-1.5 rounded border border-slate-700 flex items-center space-x-1">
-                                    <span className="text-purple-400">🍾 Rum:</span>
-                                    <span>{resources.rum}</span>
-                                </div>
-                                <div className="bg-slate-800 px-3 py-1.5 rounded border border-slate-700 flex items-center space-x-1">
-                                    <span className="text-red-400">💣 Mesiu:</span>
-                                    <span>{resources.gunpowder}</span>
-                                </div>
-                                <div className="bg-slate-800 px-3 py-1.5 rounded border border-slate-700 flex items-center space-x-1">
-                                    <span className="text-sky-400">😊 Morale:</span>
-                                    <span className={morale < 30 ? "text-red-500 animate-pulse font-bold" : ""}>{morale}%</span>
-                                </div>
-                                
-                                <button 
-                                    onClick={handleResetGame}
-                                    className="bg-red-900/60 hover:bg-red-700 text-red-200 border border-red-700 text-xs px-2.5 py-1.5 rounded transition font-bold"
-                                    title="Hapus progress LocalStorage & mulai baru"
-                                >
-                                    🔄 Reset
-                                </button>
+                            </div>
+
+                            {/* RESOURCES BAR */}
+                            <div className="flex items-center gap-2 text-[11px] font-semibold">
+                                <span className="bg-slate-800 px-2 py-1 rounded border border-slate-700">🪙 {resources.gold}</span>
+                                <span className="bg-slate-800 px-2 py-1 rounded border border-slate-700">🪵 {resources.wood}</span>
+                                <span className="bg-slate-800 px-2 py-1 rounded border border-slate-700">🍖 {resources.food}</span>
+                                <span className="bg-slate-800 px-2 py-1 rounded border border-slate-700">🍾 {resources.rum}</span>
+                                <span className="bg-slate-800 px-2 py-1 rounded border border-slate-700">😊 {morale}%</span>
                             </div>
                         </div>
                     </header>
 
-                    {/* CONTAINER UTAMA GAME */}
-                    <main className="max-w-7xl mx-auto w-full grid grid-cols-1 lg:grid-cols-3 gap-6 p-4 flex-grow">
+                    {/* MAIN CONTENT WORKSPACE VIEW */}
+                    <main className="max-w-6xl mx-auto w-full flex-grow p-3 flex flex-col gap-4">
                         
-                        {/* KOLOM KIRI & TENGAH: PETA 2D & LOGS */}
-                        <div className="lg:col-span-2 flex flex-col gap-6">
-                            
-                            {/* CANVAS MAP SIMULATION */}
-                            <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 flex flex-col shadow-inner">
-                                <div className="flex justify-between items-center mb-3">
-                                    <h2 className="font-bold text-amber-400 text-sm uppercase tracking-wider flex items-center gap-2">
-                                        <span>🗺️</span> Peta Lautan & Target RTS
-                                    </h2>
-                                    <button onClick={handleFish} className="bg-sky-600 hover:bg-sky-500 text-white font-bold text-xs px-3 py-1.5 rounded shadow transition">
-                                        🎣 Lempar Kail (Mancing)
-                                    </button>
+                        {/* VIEW 1: SHIP DECK VIEW */}
+                        {activeView === 'deck' && (
+                            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+                                <div className="lg:col-span-2 bg-slate-900 border border-slate-800 rounded-2xl p-4 flex flex-col gap-4">
+                                    <div className="flex justify-between items-center border-b border-slate-800 pb-2">
+                                        <h2 className="font-bold text-xs uppercase text-amber-400 tracking-wider">⛵ Ship Deck & Vessel Management</h2>
+                                        <button onClick={handleFishing} className="bg-sky-600 hover:bg-sky-500 text-white text-xs px-3 py-1 rounded-lg font-bold">
+                                            🎣 Fish Food
+                                        </button>
+                                    </div>
+
+                                    {/* ANIMATED SHIP DISPLAY */}
+                                    <div className="h-48 bg-gradient-to-b from-sky-950 via-slate-900 to-slate-950 rounded-xl border border-slate-800 flex items-center justify-center relative overflow-hidden">
+                                        <div className="absolute inset-x-0 bottom-0 h-10 bg-sky-900/30 border-t border-sky-800/50"></div>
+                                        <div className="text-6xl animate-ship z-10 cursor-pointer" title={profile.starterShip.name}>
+                                            {profile.starterShip.icon}
+                                        </div>
+                                    </div>
+
+                                    {/* SPECIALIST ADVISOR FEEDBACK */}
+                                    <div className="bg-slate-950 border border-slate-800 rounded-xl p-3">
+                                        <h3 className="text-xs font-bold text-amber-400 mb-2">🗣️ Specialist Crew Tactical Advice</h3>
+                                        {hiredSpecialists.length === 0 ? (
+                                            <p className="text-[11px] text-slate-500 italic">No specialist hired yet. Recruit crew members to receive active tactical advice!</p>
+                                        ) : (
+                                            <div className="space-y-2 max-h-32 overflow-y-auto pr-1">
+                                                {hiredSpecialists.map(id => {
+                                                    const spec = SPECIALISTS_INFO.find(s => s.id === id);
+                                                    return (
+                                                        <div key={id} className="bg-slate-900 p-2 rounded-lg border border-slate-800 text-xs">
+                                                            <span className="font-bold text-amber-300">{spec.title}:</span> <span className="text-slate-300 text-[11px]">"{spec.advice}"</span>
+                                                        </div>
+                                                    );
+                                                })}
+                                            </div>
+                                        )}
+                                    </div>
                                 </div>
 
-                                <div className="relative w-full h-80 bg-slate-900 rounded-lg border-2 border-slate-800 overflow-hidden bg-ocean shadow-inner">
-                                    <div className="absolute inset-0 opacity-10 bg-[radial-gradient(#38bdf8_1px,transparent_1px)] [background-size:16px_16px]"></div>
+                                {/* RIGHT PANEL: TROOPS & RECRUITMENT */}
+                                <div className="space-y-4">
+                                    <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4">
+                                        <h3 className="font-bold text-xs text-amber-400 mb-3">🗡️ Combat Troop Roster</h3>
+                                        <div className="grid grid-cols-2 gap-2">
+                                            {TROOPS_INFO.map(t => (
+                                                <div key={t.id} className="bg-slate-950 p-2 rounded-xl border border-slate-800">
+                                                    <div className="flex justify-between text-xs font-bold">
+                                                        <span>{t.name}</span>
+                                                        <span className="text-amber-400">{troops[t.id]}</span>
+                                                    </div>
+                                                    <button 
+                                                        onClick={() => {
+                                                            if (resources.gold >= t.cost) {
+                                                                setResources(r => ({ ...r, gold: r.gold - t.cost }));
+                                                                setTroops(tr => ({ ...tr, [t.id]: tr[t.id] + 1 }));
+                                                                addLog(`Recruited 1 ${t.name}`);
+                                                            }
+                                                        }}
+                                                        className="mt-2 w-full bg-slate-800 hover:bg-slate-700 text-amber-300 text-[10px] font-bold py-1 rounded-lg border border-slate-700"
+                                                    >
+                                                        Recruit ({t.cost}G)
+                                                    </button>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
 
-                                    {/* Kapal Pemain */}
+                                    <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4">
+                                        <h3 className="font-bold text-xs text-amber-400 mb-3">👨‍✈️ Hire Specialists</h3>
+                                        <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+                                            {SPECIALISTS_INFO.map(s => {
+                                                const hired = hiredSpecialists.includes(s.id);
+                                                return (
+                                                    <div key={s.id} className="flex justify-between items-center bg-slate-950 p-2 rounded-xl border border-slate-800 text-xs">
+                                                        <div>
+                                                            <div className="font-bold text-slate-200">{s.title}</div>
+                                                            <div className="text-[10px] text-slate-400">{s.role}</div>
+                                                        </div>
+                                                        <button
+                                                            disabled={hired}
+                                                            onClick={() => {
+                                                                if (resources.gold >= s.cost) {
+                                                                    setResources(r => ({ ...r, gold: r.gold - s.cost }));
+                                                                    setHiredSpecialists(prev => [...prev, s.id]);
+                                                                    addLog(`Hired specialist ${s.title}`);
+                                                                }
+                                                            }}
+                                                            className={`px-2 py-1 rounded-lg text-[10px] font-bold ${
+                                                                hired ? 'bg-emerald-950 text-emerald-400 border border-emerald-800' : 'bg-amber-600 hover:bg-amber-500 text-white'
+                                                            }`}
+                                                        >
+                                                            {hired ? 'Hired' : `${s.cost}G`}
+                                                        </button>
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* VIEW 2: TACTICAL CLOSE-UP SEA VIEW */}
+                        {activeView === 'tactical' && (
+                            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-4">
+                                <h2 className="font-bold text-sm text-red-400 uppercase tracking-wider">⚔️ Tactical Close Engagement View</h2>
+                                {selectedEncounter ? (
+                                    <div className="bg-slate-950 border border-slate-800 rounded-xl p-4 space-y-4">
+                                        <div className="flex justify-between items-start">
+                                            <div>
+                                                <h3 className="font-bold text-lg text-amber-300">{selectedEncounter.name}</h3>
+                                                <p className="text-xs text-slate-400">Target Power: {selectedEncounter.powerReq} | Your Power: {powerLevel}</p>
+                                            </div>
+                                            <span className="bg-red-950 border border-red-800 text-red-400 text-xs px-2 py-1 rounded font-bold">Encounter</span>
+                                        </div>
+
+                                        <div className="grid grid-cols-3 gap-3">
+                                            <button 
+                                                onClick={() => handleBattleAction('bombard')}
+                                                className="bg-red-600 hover:bg-red-500 text-white font-bold p-3 rounded-xl text-xs flex flex-col items-center gap-1 shadow"
+                                            >
+                                                <span>💣 Cannon Bombard</span>
+                                                <span className="text-[10px] text-red-200">Heavy damage</span>
+                                            </button>
+                                            <button 
+                                                onClick={() => handleBattleAction('board')}
+                                                className="bg-amber-600 hover:bg-amber-500 text-white font-bold p-3 rounded-xl text-xs flex flex-col items-center gap-1 shadow"
+                                            >
+                                                <span>⚔️ Board Vessel</span>
+                                                <span className="text-[10px] text-amber-200">Troop melee</span>
+                                            </button>
+                                            <button 
+                                                onClick={() => { setActiveView('world'); setSelectedEncounter(null); }}
+                                                className="bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold p-3 rounded-xl text-xs flex flex-col items-center gap-1"
+                                            >
+                                                <span>💨 Retreat / Flee</span>
+                                                <span className="text-[10px] text-slate-400">Disengage</span>
+                                            </button>
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <div className="text-center py-8 text-slate-500 text-xs">
+                                        No active close contact. Select an icon on the World Map to engage!
+                                    </div>
+                                )}
+                            </div>
+                        )}
+
+                        {/* VIEW 3: GLOBAL OCEAN WORLD MAP VIEW (SPHERICAL WRAP) */}
+                        {activeView === 'world' && (
+                            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 flex flex-col gap-3">
+                                <div className="flex justify-between items-center">
+                                    <h2 className="font-bold text-xs text-amber-400 uppercase tracking-wider">🗺️ Spherical World Map (Click to Navigate)</h2>
+                                    <span className="text-[10px] text-slate-400">East-West bounds loop spherical globe</span>
+                                </div>
+
+                                <div 
+                                    onClick={handleMapClick}
+                                    className="relative w-full h-[400px] bg-ocean border-2 border-slate-800 rounded-xl overflow-hidden cursor-crosshair shadow-inner"
+                                >
+                                    {/* MAP GRID LINES */}
+                                    <div className="absolute inset-0 opacity-10 bg-[linear-gradient(to_right,#38bdf8_1px,transparent_1px),linear-gradient(to_bottom,#38bdf8_1px,transparent_1px)] [background-size:32px_32px]"></div>
+
+                                    {/* DASHED TRAJECTORY LINE TO TARGET */}
+                                    {targetDestination && (
+                                        <svg className="absolute inset-0 w-full h-full pointer-events-none">
+                                            <line 
+                                                x1={shipPos.x} 
+                                                y1={shipPos.y} 
+                                                x2={targetDestination.x} 
+                                                y2={targetDestination.y} 
+                                                stroke="#f59e0b" 
+                                                strokeWidth="2" 
+                                                strokeDasharray="6,6"
+                                            />
+                                        </svg>
+                                    )}
+
+                                    {/* PLAYER SHIP ICON */}
                                     <div 
-                                        className="absolute transition-all duration-500 transform -translate-x-1/2 -translate-y-1/2 text-2xl cursor-pointer filter drop-shadow-md"
+                                        className="absolute transform -translate-x-1/2 -translate-y-1/2 text-2xl transition-all duration-75"
                                         style={{ left: `${shipPos.x}px`, top: `${shipPos.y}px` }}
-                                        title="Kapal Kamu"
                                     >
                                         ⛵
                                     </div>
 
-                                    {/* Target NPC/Pulau */}
-                                    {targets.map(t => (
-                                        <button
-                                            key={t.id}
-                                            onClick={() => setSelectedTarget(t)}
-                                            className={`absolute transform -translate-x-1/2 -translate-y-1/2 p-2 rounded-full border-2 transition-all hover:scale-125 ${
-                                                t.type === 'island' ? 'bg-emerald-900 border-emerald-500' :
-                                                t.type === 'ship' ? 'bg-amber-900 border-amber-500' :
-                                                t.type === 'fort' ? 'bg-red-900 border-red-500' : 'bg-purple-900 border-purple-500'
-                                            }`}
-                                            style={{ left: `${t.x}px`, top: `${t.y}px` }}
+                                    {/* WORLD NODES */}
+                                    {WORLD_NODES.map(node => (
+                                        <div
+                                            key={node.id}
+                                            className="absolute transform -translate-x-1/2 -translate-y-1/2 p-2 rounded-full border border-amber-500/50 bg-slate-900/80 text-xs flex items-center justify-center shadow-lg"
+                                            style={{ left: `${node.x}px`, top: `${node.y}px` }}
+                                            title={node.name}
                                         >
-                                            <span className="text-xs">
-                                                {t.type === 'island' ? '🏝️' : t.type === 'ship' ? '⛵' : t.type === 'fort' ? '🏰' : '🐙'}
-                                            </span>
-                                        </button>
-                                    ))}
-                                </div>
-                            </div>
-
-                            {/* LOGS EVENT */}
-                            <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 h-48 flex flex-col">
-                                <h3 className="font-bold text-xs uppercase text-slate-400 mb-2">📜 Log Kapten & Event</h3>
-                                <div className="flex-grow overflow-y-auto space-y-1 text-xs font-mono text-slate-300 pr-2">
-                                    {logs.map((log, idx) => (
-                                        <div key={idx} className="border-b border-slate-800/50 pb-1">{log}</div>
-                                    ))}
-                                </div>
-                            </div>
-
-                        </div>
-
-                        {/* KOLOM KANAN: MANAJEMEN KAPAL, KRU & POPUP ANALISIS */}
-                        <div className="flex flex-col gap-6">
-                            
-                            {/* POPUP ANALYSIS JIKA TARGET DIPILIH */}
-                            {selectedTarget && (
-                                <div className="bg-amber-950/40 border-2 border-amber-500/80 rounded-xl p-4 shadow-xl animate-fade-in">
-                                    <div className="flex justify-between items-start mb-2">
-                                        <h3 className="font-bold text-amber-400 text-sm">⚔️ ANALISIS TACTICAL: {selectedTarget.name}</h3>
-                                        <button onClick={() => setSelectedTarget(null)} className="text-slate-400 hover:text-white font-bold">✕</button>
-                                    </div>
-                                    <div className="text-xs space-y-1.5 mb-4 text-slate-300">
-                                        <div>Power Target: <span className="font-bold text-red-400">{selectedTarget.powerReq}</span></div>
-                                        <div>Peluang Menang: <span className="font-bold text-emerald-400">{Math.min(95, Math.max(10, Math.floor((powerLevel / selectedTarget.powerReq) * 60)))}%</span></div>
-                                        <div>Potensi Loot: Emas +{selectedTarget.loot.gold}</div>
-                                    </div>
-                                    <div className="grid grid-cols-2 gap-2">
-                                        <button onClick={() => handleExecuteAttack('bombard')} className="bg-red-600 hover:bg-red-500 text-white font-bold py-1.5 px-2 rounded text-xs">
-                                            💣 Tembak Meriam
-                                        </button>
-                                        <button onClick={() => handleExecuteAttack('board')} className="bg-amber-600 hover:bg-amber-500 text-white font-bold py-1.5 px-2 rounded text-xs">
-                                            ⚔️ Serbu (Boarding)
-                                        </button>
-                                    </div>
-                                </div>
-                            )}
-
-                            {/* STATUS & UPGRADE KAPAL */}
-                            <div className="bg-slate-900 border border-slate-800 rounded-xl p-4">
-                                <h3 className="font-bold text-sm text-amber-400 mb-3">⚓ Status Kapal</h3>
-                                <div className="text-xs space-y-2 mb-4">
-                                    <div className="flex justify-between">
-                                        <span className="text-slate-400">Tipe Kapal:</span>
-                                        <span className="font-semibold">{SHIP_TIERS[ship.level - 1].name} (Lvl {ship.level})</span>
-                                    </div>
-                                    <div className="flex justify-between items-center">
-                                        <span className="text-slate-400">Lambung (Hull HP):</span>
-                                        <span className="font-semibold">{ship.hullHp} / {ship.maxHullHp}</span>
-                                    </div>
-                                    <div className="w-full bg-slate-800 rounded-full h-2 overflow-hidden">
-                                        <div className="bg-emerald-500 h-2 rounded-full" style={{ width: `${(ship.hullHp / ship.maxHullHp) * 100}%` }}></div>
-                                    </div>
-                                    <div className="flex justify-between">
-                                        <span className="text-slate-400">Slot Meriam:</span>
-                                        <span className="font-semibold">{ship.cannons} / {SHIP_TIERS[ship.level - 1].maxCannons}</span>
-                                    </div>
-                                    <div className="flex justify-between">
-                                        <span className="text-slate-400">Kapasitas Kru:</span>
-                                        <span className="font-semibold">{totalTroopsCount} / {SHIP_TIERS[ship.level - 1].maxCrew}</span>
-                                    </div>
-                                </div>
-
-                                <div className="grid grid-cols-2 gap-2">
-                                    <button onClick={handleUpgradeShip} className="bg-amber-600 hover:bg-amber-500 text-white font-bold text-xs py-2 px-2 rounded transition">
-                                        ⬆️ Upgrade Kapal
-                                    </button>
-                                    <button onClick={handleBuyCannon} className="bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-bold text-xs py-2 px-2 rounded transition">
-                                        💥 Beli Meriam
-                                    </button>
-                                </div>
-                            </div>
-
-                            {/* MANAJEMEN TROOPS */}
-                            <div className="bg-slate-900 border border-slate-800 rounded-xl p-4">
-                                <h3 className="font-bold text-sm text-amber-400 mb-3">🗡️ Prajurit Tempur</h3>
-                                <div className="grid grid-cols-2 gap-2 mb-3">
-                                    {TROOP_TYPES.map(t => (
-                                        <div key={t.id} className="bg-slate-950 p-2 rounded border border-slate-800 text-xs">
-                                            <div className="font-bold flex justify-between">
-                                                <span>{t.name}</span>
-                                                <span className="text-amber-400">{troops[t.id]}</span>
-                                            </div>
-                                            <div className="text-[10px] text-slate-400 mb-1">Power: +{t.power}</div>
-                                            <button 
-                                                onClick={() => handleRecruitTroop(t.id, t.gold)}
-                                                className="w-full bg-slate-800 hover:bg-slate-700 text-amber-300 font-bold py-1 rounded text-[10px] border border-slate-700"
-                                            >
-                                                Rekrut ({t.gold}G)
-                                            </button>
+                                            {node.type === 'island' ? '🏝️' : node.type === 'ship' ? '⛵' : node.type === 'fort' ? '🏰' : '🐙'}
                                         </div>
                                     ))}
                                 </div>
                             </div>
+                        )}
 
-                            {/* KRU SPESIALIST */}
-                            <div className="bg-slate-900 border border-slate-800 rounded-xl p-4">
-                                <h3 className="font-bold text-sm text-amber-400 mb-3">👨‍✈️ Specialist Crew</h3>
-                                <div className="space-y-2 max-h-40 overflow-y-auto pr-1">
-                                    {SPECIALISTS.map(s => {
-                                        const isHired = activeSpecialists.includes(s.id);
-                                        return (
-                                            <div key={s.id} className="flex justify-between items-center bg-slate-950 p-2 rounded border border-slate-800 text-xs">
-                                                <div>
-                                                    <div className="font-bold">{s.name}</div>
-                                                    <div className="text-[10px] text-slate-400">{s.desc}</div>
-                                                </div>
-                                                <button
-                                                    disabled={isHired}
-                                                    onClick={() => handleHireSpecialist(s.id, s.costGold)}
-                                                    className={`px-2 py-1 rounded text-[10px] font-bold ${
-                                                        isHired ? 'bg-emerald-900/50 text-emerald-400 border border-emerald-800' : 'bg-amber-600 hover:bg-amber-500 text-white'
-                                                    }`}
-                                                >
-                                                    {isHired ? 'Aktif' : `${s.costGold}G`}
-                                                </button>
-                                            </div>
-                                        );
-                                    })}
-                                </div>
+                        {/* LOGS PANEL AT BOTTOM */}
+                        <div className="bg-slate-900 border border-slate-800 rounded-xl p-3 h-32 flex flex-col">
+                            <h3 className="font-bold text-[10px] uppercase text-slate-400 mb-1">📜 Captain's Journal & Event Logs</h3>
+                            <div className="flex-grow overflow-y-auto font-mono text-[11px] text-slate-300 space-y-1 pr-1">
+                                {logs.map((log, i) => (
+                                    <div key={i} className="border-b border-slate-800/40 pb-0.5">{log}</div>
+                                ))}
                             </div>
-
                         </div>
 
                     </main>
+
+                    {/* BOTTOM NAVIGATION BAR */}
+                    <nav className="bg-slate-900 border-t border-slate-800 p-2 sticky bottom-0 z-50">
+                        <div className="max-w-md mx-auto grid grid-cols-3 gap-2">
+                            <button 
+                                onClick={() => setActiveView('deck')}
+                                className={`py-2 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1 ${
+                                    activeView === 'deck' ? 'bg-amber-500 text-slate-950 shadow' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+                                }`}
+                            >
+                                ⛵ Ship Deck
+                            </button>
+                            <button 
+                                onClick={() => setActiveView('tactical')}
+                                className={`py-2 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1 ${
+                                    activeView === 'tactical' ? 'bg-amber-500 text-slate-950 shadow' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+                                }`}
+                            >
+                                ⚔️ Tactical View
+                            </button>
+                            <button 
+                                onClick={() => setActiveView('world')}
+                                className={`py-2 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1 ${
+                                    activeView === 'world' ? 'bg-amber-500 text-slate-950 shadow' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+                                }`}
+                            >
+                                🗺️ World Map
+                            </button>
+                        </div>
+                    </nav>
                 </div>
             );
         }
@@ -554,12 +635,3 @@
     </script>
 </body>
 </html>
-```
-
-### Petunjuk Tambahan untuk Deployment:
-
-1. **Struktur Folder di GitHub**:
-   - Pastikan nama filenya adalah tepat **`index.html`** (huruf kecil semua) dan berada di folder **root** (bukan di dalam subfolder).
-
-2. **Pengaturan Vercel**:
-   - Jika mendeploy file tunggal ini di Vercel, pilih **Other** / **Static Site** pada pilihan *Framework Preset* (karena ini adalah file HTML statis dengan CDN, bukan React app yang menggunakan npm/Webpack/Vite).
