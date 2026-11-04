@@ -2,216 +2,57 @@
 <html lang="id">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>Pocket Dictator</title>
+  <title>Pocket Pirates</title>
   <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
-    body { background: #0f1015; color: #e2e8f0; display: flex; justify-content: center; align-items: center; min-height: 100vh; padding: 12px; }
+    * { box-sizing: border-box; }
+    body { background: #0f172a; color: #f8fafc; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; display: flex; flex-direction: column; align-items: center; margin: 0; padding: 20px; }
+    h1 { margin-bottom: 5px; color: #f59e0b; text-shadow: 2px 2px #000; }
+    #stats-bar { display: flex; gap: 20px; background: #1e293b; padding: 12px 24px; border-radius: 8px; border: 1px solid #334155; margin-bottom: 15px; font-weight: bold; }
+    .gold { color: #fbbf24; }
     
-    .container { background: #181924; width: 100%; max-width: 420px; border-radius: 20px; border: 1px solid #2a2d3d; padding: 20px; box-shadow: 0 20px 40px rgba(0,0,0,0.6); }
+    /* Layout Utama */
+    #game-container { display: flex; gap: 20px; width: 1000px; }
+    canvas { background: #0284c7; border-radius: 8px; border: 4px solid #0369a1; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.5); }
     
-    h1 { text-align: center; color: #ff4757; font-size: 1.6rem; letter-spacing: 1px; font-weight: 800; text-transform: uppercase; }
-    .subtitle { text-align: center; color: #a4b0be; font-size: 0.8rem; margin-bottom: 20px; }
+    /* Panel Rekrutmen Kru */
+    #crew-panel { background: #1e293b; padding: 15px; border-radius: 8px; width: 300px; border: 1px solid #334155; }
+    .crew-card { background: #334155; padding: 10px; border-radius: 6px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; }
+    .crew-info h4 { margin: 0; color: #38bdf8; }
+    .crew-info p { margin: 3px 0 0 0; font-size: 0.8rem; color: #cbd5e1; }
+    button.btn-buy { background: #10b981; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-weight: bold; }
+    button.btn-buy:disabled { background: #64748b; cursor: not-allowed; }
     
-    /* Form Setup */
-    .form-group { margin-bottom: 15px; }
-    label { display: block; font-size: 0.8rem; color: #a4b0be; margin-bottom: 5px; font-weight: 600; }
-    input, select { width: 100%; padding: 12px; background: #0f1015; border: 1px solid #2a2d3d; border-radius: 10px; color: #fff; font-size: 0.9rem; outline: none; }
-    input:focus, select:focus { border-color: #ff4757; }
-    
-    /* Dashboard Stats */
-    .country-card { background: linear-gradient(135deg, #1e202e, #141520); border-radius: 14px; padding: 15px; border: 1px solid #2f3542; margin-bottom: 15px; }
-    .country-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #2f3542; padding-bottom: 10px; margin-bottom: 10px; }
-    .country-name { font-weight: bold; font-size: 1.1rem; color: #eccc68; }
-    .country-gov { font-size: 0.75rem; background: #ff4757; padding: 3px 8px; border-radius: 20px; color: #fff; font-weight: bold; }
-    
-    .stats-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-top: 10px; }
-    .stat-box { background: #0f1015; padding: 10px; border-radius: 8px; text-align: center; border: 1px solid #2a2d3d; }
-    .stat-val { font-size: 1.1rem; font-weight: bold; color: #2ed573; margin-top: 2px; }
-    .stat-lbl { font-size: 0.7rem; color: #a4b0be; }
-
-    /* Actions */
-    .actions { display: flex; flex-direction: column; gap: 10px; margin-top: 15px; }
-    button { width: 100%; padding: 12px; background: #ff4757; border: none; border-radius: 10px; color: white; font-weight: bold; font-size: 0.9rem; cursor: pointer; transition: 0.2s; }
-    button:active { transform: scale(0.97); }
-    button.sec { background: #2ed573; color: #0f1015; }
-    button.alt { background: #3742fa; }
-    
-    .log-box { background: #0f1015; border-radius: 8px; padding: 10px; font-size: 0.75rem; color: #70a1ff; margin-top: 15px; min-height: 38px; text-align: center; display: flex; align-items: center; justify-content: center; border: 1px dashed #2f3542; }
-    
-    .hidden { display: none; }
+    .hired-slot { background: #0f172a; border: 1px dashed #475569; padding: 8px; margin-top: 5px; border-radius: 4px; font-size: 0.85rem; color: #94a3b8; }
   </style>
 </head>
 <body>
 
-<div class="container">
-  <h1>POCKET DICTATOR</h1>
-  <p class="subtitle">Klaim Wilayah & Pimpin Rezimmu</p>
-
-  <!-- Halaman 1: Formulir Pendaftaran Negara -->
-  <div id="setupScreen">
-    <div class="form-group">
-      <label>Username Instagram Anda</label>
-      <input type="text" id="igHandle" placeholder="@username_kamu">
-    </div>
-    <div class="form-group">
-      <label>Nama Negara / Wilayah</label>
-      <input type="text" id="nationName" placeholder="Contoh: Republik Alboran">
-    </div>
-    <div class="form-group">
-      <label>Bentuk Pemerintahan</label>
-      <select id="govType">
-        <option value="Junta Militer">Junta Militer</option>
-        <option value="Kediktatoran Mutlak">Kediktatoran Mutlak</option>
-        <option value="Oligarki Siber">Oligarki Siber</option>
-        <option value="Teknokrasi Otoriter">Teknokrasi Otoriter</option>
-      </select>
-    </div>
-    <button onclick="claimNation()">KLAIM 10.000 KM² SEKARANG</button>
+  <h1>🏴‍☠️ POCKET PIRATES</h1>
+  
+  <div id="stats-bar">
+    <div>Kapal: <span style="color: #38bdf8;">Sloop Sederhana</span></div>
+    <div>Gold: <span id="gold-display" class="gold">50</span> 💰</div>
+    <div>Slot Kru: <span id="slot-display">0</span> / 3</div>
   </div>
 
-  <!-- Halaman 2: Dashboard Game -->
-  <div id="gameScreen" class="hidden">
-    <div class="country-card">
-      <div class="country-header">
-        <div>
-          <div class="country-name" id="dispName">Nama Negara</div>
-          <div style="font-size: 0.75rem; color: #a4b0be;" id="dispOwner">by @user</div>
-        </div>
-        <div class="country-gov" id="dispGov">Junta</div>
-      </div>
+  <div id="game-container">
+    <!-- Canvas Laut tempat Kapal Berlayar -->
+    <canvas id="oceanCanvas" width="650" height="450"></canvas>
+
+    <!-- Panel Kedai / Tavern Rekrutmen -->
+    <div id="crew-panel">
+      <h3>⚓ Kedai Rekrutmen</h3>
+      <div id="crew-list"></div>
       
-      <div class="stats-grid">
-        <div class="stat-box">
-          <div class="stat-lbl">📐 Luas Wilayah</div>
-          <div class="stat-val" id="dispArea" style="color:#eccc68;">10,000 km²</div>
-        </div>
-        <div class="stat-box">
-          <div class="stat-lbl">💰 Kas Negara</div>
-          <div class="stat-val" id="dispGold">$1,000</div>
-        </div>
-        <div class="stat-box">
-          <div class="stat-lbl">🪖 Kesetiaan Militer</div>
-          <div class="stat-val" id="dispLoyalty">80%</div>
-        </div>
-        <div class="stat-box">
-          <div class="stat-lbl">✊ Kepuasan Rakyat</div>
-          <div class="stat-val" id="dispApproval">60%</div>
-        </div>
+      <h3>📋 Kru Aktif</h3>
+      <div id="active-crew">
+        <div class="hired-slot">Kosong</div>
+        <div class="hired-slot">Kosong</div>
+        <div class="hired-slot">Kosong</div>
       </div>
     </div>
-
-    <div class="actions">
-      <button class="sec" onclick="collectTax()">💰 Tarik Pajak (+Kas, -Rakyat)</button>
-      <button onclick="fundMilitary()">🪖 Beli Alutsista (-Kas, +Militer)</button>
-      <button class="alt" onclick="expandTerritory()">⚔️ Invasi Tetangga (+1,000 km²)</button>
-      <button style="background:#57606f;" onclick="shareToStory()">📸 Pamer Status ke IG Story</button>
-    </div>
-
-    <div class="log-box" id="logMsg">Selamat datang, Diktator! Wilayah 10.000 km² resmi milikmu.</div>
   </div>
-</div>
 
-<script>
-  let state = {
-    owner: '',
-    name: '',
-    gov: '',
-    area: 10000,
-    gold: 1000,
-    loyalty: 80,
-    approval: 60
-  };
-
-  function claimNation() {
-    const handle = document.getElementById('igHandle').value.trim();
-    const nation = document.getElementById('nationName').value.trim();
-    const gov = document.getElementById('govType').value;
-
-    if (!handle || !nation) {
-      alert('Tolong isi Username IG dan Nama Negaramu terlebih dahulu!');
-      return;
-    }
-
-    state.owner = handle.startsWith('@') ? handle : '@' + handle;
-    state.name = nation;
-    state.gov = gov;
-
-    document.getElementById('setupScreen').classList.add('hidden');
-    document.getElementById('gameScreen').classList.remove('hidden');
-
-    document.getElementById('dispName').innerText = state.name;
-    document.getElementById('dispOwner').innerText = 'Diktator: ' + state.owner;
-    document.getElementById('dispGov').innerText = state.gov;
-
-    updateUI();
-  }
-
-  function updateUI() {
-    document.getElementById('dispArea').innerText = state.area.toLocaleString() + ' km²';
-    document.getElementById('dispGold').innerText = '$' + state.gold.toLocaleString();
-    document.getElementById('dispLoyalty').innerText = state.loyalty + '%';
-    document.getElementById('dispApproval').innerText = state.approval + '%';
-
-    // Cek Kondisi Kalah
-    if (state.loyalty <= 20) {
-      alert('KUDETA MILITER! Jenderalmu mengambil alih kekuasaan.');
-      location.reload();
-    } else if (state.approval <= 10) {
-      alert('REVOLUSI RAKYAT! Istanamu digerebek massa.');
-      location.reload();
-    }
-  }
-
-  function log(txt) {
-    document.getElementById('logMsg').innerText = txt;
-  }
-
-  function collectTax() {
-    state.gold += 500;
-    state.approval = Math.max(0, state.approval - 10);
-    log('Pajak ditarik! Kas +$500, tapi Kepuasan Rakyat turun 10%.');
-    updateUI();
-  }
-
-  function fundMilitary() {
-    if (state.gold < 400) {
-      log('Kas negara tidak cukup ($400 dibutuhkan)!');
-      return;
-    }
-    state.gold -= 400;
-    state.loyalty = Math.min(100, state.loyalty + 15);
-    log('Alutsista dibeli! Kesetiaan Militer naik +15%.');
-    updateUI();
-  }
-
-  function expandTerritory() {
-    if (state.gold < 800) {
-      log('Butuh $800 untuk membiayai operasi invasi!');
-      return;
-    }
-    state.gold -= 800;
-    state.area += 1000;
-    state.loyalty = Math.max(0, state.loyalty - 5);
-    log('Invasi Sukses! Wilayah bertambah +1,000 km².');
-    updateUI();
-  }
-
-  function shareToStory() {
-    const text = `👑 REZIM ${state.name.toUpperCase()} 👑\n` +
-                 `Diktator: ${state.owner}\n` +
-                 `📐 Wilayah: ${state.area.toLocaleString()} km²\n` +
-                 `🏛️ Pemerintahan: ${state.gov}\n\n` +
-                 `Mainkan Pocket Dictator & klaim 10.000 km2 negaramu via link di bio!`;
-                 
-    if (navigator.clipboard) {
-      navigator.clipboard.writeText(text);
-      alert('Status Negaramu berhasil disalin! Silakan paste/tempel di Instagram Story kamu.');
-    } else {
-      alert(text);
-    }
-  }
-</script>
-
+  <script src="game.js"></script>
 </body>
 </html>
